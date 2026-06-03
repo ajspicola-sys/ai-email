@@ -271,6 +271,21 @@ async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
  */
 async function getOrCreateOutlookFolder(employeeEmail, folderName, accessToken) {
   try {
+    if (!folderName) return null;
+    const lowerName = folderName.toLowerCase().trim();
+    if (lowerName === 'deleted items' || lowerName === 'deleteditems' || lowerName === 'trash') {
+      return 'deleteditems';
+    }
+    if (lowerName === 'archive') {
+      return 'archive';
+    }
+    if (lowerName === 'junkemail' || lowerName === 'junk email') {
+      return 'junkemail';
+    }
+    if (lowerName === 'inbox') {
+      return 'inbox';
+    }
+
     const listFoldersUrl = `https://graph.microsoft.com/v1.0/users/${employeeEmail}/mailFolders?$top=250`;
     const res = await fetch(listFoldersUrl, {
       headers: { 'Authorization': `Bearer ${accessToken}` }

@@ -403,6 +403,53 @@ const db = {
     }
   },
 
+  async getEmailsBySender(employeeEmail, senderEmail) {
+    if (isSupabaseConfigured) {
+      let query = supabase
+        .from('emails')
+        .select('*')
+        .eq('sender_email', senderEmail.toLowerCase().trim());
+      if (employeeEmail) {
+        query = query.eq('employee_email', employeeEmail.toLowerCase().trim());
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.error('Supabase getEmailsBySender error:', error);
+        throw error;
+      }
+      return data || [];
+    } else {
+      if (employeeEmail) {
+        return await dbAll('SELECT * FROM emails WHERE sender_email = ? AND employee_email = ?', [senderEmail.toLowerCase().trim(), employeeEmail.toLowerCase().trim()]);
+      } else {
+        return await dbAll('SELECT * FROM emails WHERE sender_email = ?', [senderEmail.toLowerCase().trim()]);
+      }
+    }
+  },
+
+  async deleteEmailsBySender(employeeEmail, senderEmail) {
+    if (isSupabaseConfigured) {
+      let query = supabase
+        .from('emails')
+        .delete()
+        .eq('sender_email', senderEmail.toLowerCase().trim());
+      if (employeeEmail) {
+        query = query.eq('employee_email', employeeEmail.toLowerCase().trim());
+      }
+      const { error } = await query;
+      if (error) {
+        console.error('Supabase deleteEmailsBySender error:', error);
+        throw error;
+      }
+    } else {
+      if (employeeEmail) {
+        await dbRun('DELETE FROM emails WHERE sender_email = ? AND employee_email = ?', [senderEmail.toLowerCase().trim(), employeeEmail.toLowerCase().trim()]);
+      } else {
+        await dbRun('DELETE FROM emails WHERE sender_email = ?', [senderEmail.toLowerCase().trim()]);
+      }
+    }
+  },
+
   // 3. Rules (Folders)
   async getRules() {
     if (isSupabaseConfigured) {

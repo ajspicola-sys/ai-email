@@ -146,6 +146,30 @@ const isPromoEmail = (email) => {
          subjectText.includes('promo');
 };
 
+const getCategoryBadgeStyles = (category) => {
+  const cat = (category || '').toLowerCase().trim();
+  if (cat.includes('finance') || cat.includes('bill')) {
+    return { background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' };
+  }
+  if (cat.includes('newsletter') || cat.includes('feed') || cat.includes('promotion') || cat.includes('promo')) {
+    return { background: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' };
+  }
+  if (cat.includes('personal') || cat.includes('family')) {
+    return { background: '#fce7f3', color: '#be185d', border: '1px solid #fbcfe8' };
+  }
+  if (cat.includes('shopping') || cat.includes('order')) {
+    return { background: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa' };
+  }
+  if (cat.includes('travel') || cat.includes('plan')) {
+    return { background: '#ecfeff', color: '#0e7490', border: '1px solid #cffafe' };
+  }
+  if (cat.includes('deleted')) {
+    return { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0' };
+  }
+  // Default General Inbox
+  return { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #dbeafe' };
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('sentry_user');
@@ -164,6 +188,7 @@ export default function App() {
   const [profileForm, setProfileForm] = useState({ name: '', email: '', password: '', avatar: '' });
   const [cropImageSrc, setCropImageSrc] = useState('');
   const [showCropper, setShowCropper] = useState(false);
+  const [unsubscribeTarget, setUnsubscribeTarget] = useState(null);
   const [consoleLogs, setConsoleLogs] = useState([
     'Sentry AI Service initialized.',
     'Listening for incoming mailboxes...',
@@ -1330,44 +1355,62 @@ export default function App() {
                                     onChange={(e) => handleSelectRow(email.id, e)}
                                   />
                                 </td>
-                                <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{email.employee_email}</td>
-                                <td style={{ fontWeight: '500' }}>{email.sender_name}</td>
-                                <td style={{ fontWeight: '600' }}>{email.subject}</td>
-                                <td>
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                    <span className="badge badge-category" style={{ width: 'fit-content' }}>{email.category}</span>
-                                    {isPromoEmail(email) && (
-                                      <span style={{ fontSize: '9.5px', background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px', width: 'fit-content', fontWeight: '800' }}>
-                                        🏷️ Promotion
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td><span className={`badge badge-urgency-${email.urgency.toLowerCase()}`}>{email.urgency}</span></td>
-                                <td style={{ color: 'var(--text-secondary)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.summary}</td>
-                                <td style={{ color: 'var(--text-secondary)' }}>{new Date(email.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                                <td style={{ textAlign: 'center' }}>
-                                  <button
-                                    onClick={(e) => handleDeleteLog(email.id, e)}
-                                    style={{
-                                      background: 'transparent',
-                                      border: 'none',
-                                      color: '#f43f5e',
-                                      cursor: 'pointer',
-                                      padding: '6px',
-                                      borderRadius: '6px',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      transition: 'all 0.2s'
-                                    }}
-                                    title="Delete this triage log entry"
-                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(244, 63, 94, 0.08)'; }}
-                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                                  >
-                                    <Icons.Trash style={{ width: '14px', height: '14px' }} />
-                                  </button>
-                                </td>
+                                 <td style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                     <Icons.Mail style={{ width: '12px', height: '12px', color: 'var(--text-muted)', flexShrink: 0 }} />
+                                     <span>{email.employee_email}</span>
+                                   </div>
+                                 </td>
+                                 <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{email.sender_name}</td>
+                                 <td style={{ fontWeight: '500', color: 'var(--text-secondary)' }}>{email.subject}</td>
+                                 <td>
+                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                     {(() => {
+                                       const badgeStyle = getCategoryBadgeStyles(email.category);
+                                       return (
+                                         <span className="badge" style={{ ...badgeStyle, width: 'fit-content' }}>
+                                           {email.category}
+                                         </span>
+                                       );
+                                     })()}
+                                     {isPromoEmail(email) && (
+                                       <span style={{ fontSize: '9.5px', background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px', width: 'fit-content', fontWeight: '800' }}>
+                                         🏷️ Promotion
+                                       </span>
+                                     )}
+                                   </div>
+                                 </td>
+                                 <td>
+                                   {email.urgency.toLowerCase() === 'high' && (
+                                     <span className="badge badge-urgency-high" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e11d48' }} />
+                                       High
+                                     </span>
+                                   )}
+                                   {email.urgency.toLowerCase() === 'medium' && (
+                                     <span className="badge badge-urgency-medium" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#d97706' }} />
+                                       Medium
+                                     </span>
+                                   )}
+                                   {email.urgency.toLowerCase() === 'low' && (
+                                     <span className="badge badge-urgency-low" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#2563eb' }} />
+                                       Low
+                                     </span>
+                                   )}
+                                 </td>
+                                 <td style={{ color: 'var(--text-secondary)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.summary}</td>
+                                 <td style={{ color: 'var(--text-secondary)' }}>{new Date(email.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                 <td style={{ textAlign: 'center' }}>
+                                   <button
+                                     onClick={(e) => handleDeleteLog(email.id, e)}
+                                     className="delete-log-btn"
+                                     title="Delete this triage log entry"
+                                   >
+                                     <Icons.Trash style={{ width: '14px', height: '14px' }} />
+                                   </button>
+                                 </td>
                               </tr>
                             ))
                           )}
@@ -1985,22 +2028,7 @@ export default function App() {
                   </p>
                 </div>
                 <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(`${API_BASE}/emails/${activeDetailEmail.id}/reroute`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ category: 'Deleted Items' })
-                      });
-                      if (res.ok) {
-                        setEmails(prev => prev.filter(e => e.id !== activeDetailEmail.id));
-                        setActiveDetailEmail(null);
-                        triggerToast('Newsletter successfully deleted from Outlook mailbox!');
-                      }
-                    } catch (e) {
-                      triggerToast('Failed to complete cleanup');
-                    }
-                  }}
+                  onClick={() => setUnsubscribeTarget(activeDetailEmail)}
                   className="simulator-btn"
                   style={{ background: '#78350f', color: '#ffffff', border: 'none', padding: '8px 16px', fontSize: '12px', boxShadow: 'none' }}
                 >
@@ -2375,6 +2403,93 @@ export default function App() {
             setShowCropper(false);
           }}
         />
+      )}
+
+      {/* Unsubscribe & Delete Options Modal */}
+      {unsubscribeTarget && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-card no-hover" style={{ width: '460px', padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeInScale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)', cursor: 'default' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #f59e0b', color: '#b45309', flexShrink: 0 }}>
+                <Icons.AlertTriangle style={{ width: '24px', height: '24px' }} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)' }}>Unsubscribe Options</h3>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Choose how to clean up your Outlook inbox</span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'left', background: 'var(--bg-hover-light)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+              <div style={{ marginBottom: '6px' }}><strong>Sender:</strong> {unsubscribeTarget.sender_name} ({unsubscribeTarget.sender_email})</div>
+              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><strong>Subject:</strong> {unsubscribeTarget.subject}</div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                className="simulator-btn"
+                style={{ justifyContent: 'center', height: '44px', width: '100%', background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)', color: '#ffffff', border: 'none', fontWeight: '700' }}
+                onClick={async () => {
+                  const targetId = unsubscribeTarget.id;
+                  setUnsubscribeTarget(null);
+                  try {
+                    const res = await fetch(`${API_BASE}/emails/${targetId}/reroute`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ category: 'Deleted Items' })
+                    });
+                    if (res.ok) {
+                      setEmails(prev => prev.filter(e => e.id !== targetId));
+                      setActiveDetailEmail(null);
+                      showToast('Email successfully moved to Deleted Items in Outlook.', 'success');
+                    } else {
+                      showToast('Failed to delete email from Outlook.', 'error');
+                    }
+                  } catch (e) {
+                    showToast('Failed to delete email.', 'error');
+                  }
+                }}
+              >
+                Delete This Email Only
+              </button>
+
+              <button
+                className="simulator-btn"
+                style={{ justifyContent: 'center', height: '44px', width: '100%', background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#ffffff', border: 'none', fontWeight: '700' }}
+                onClick={async () => {
+                  const senderEmail = unsubscribeTarget.sender_email;
+                  const employeeEmail = unsubscribeTarget.employee_email;
+                  setUnsubscribeTarget(null);
+                  try {
+                    const res = await fetch(`${API_BASE}/emails/unsubscribe-sender`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ sender_email: senderEmail, employee_email: employeeEmail })
+                    });
+                    if (res.ok) {
+                      setEmails(prev => prev.filter(e => e.sender_email !== senderEmail));
+                      setActiveDetailEmail(null);
+                      showToast(`All emails from ${senderEmail} successfully deleted.`, 'success');
+                    } else {
+                      showToast('Failed to delete all emails from sender.', 'error');
+                    }
+                  } catch (e) {
+                    showToast('Failed to unsubscribe and delete emails.', 'error');
+                  }
+                }}
+              >
+                Delete All from This Sender
+              </button>
+
+              <button
+                className="simulator-btn"
+                style={{ justifyContent: 'center', height: '44px', width: '100%', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-secondary)', fontWeight: '700', boxShadow: 'none' }}
+                onClick={() => setUnsubscribeTarget(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast Popups */}

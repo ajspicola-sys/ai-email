@@ -288,6 +288,62 @@ app.post('/api/emails/delete-batch', async (req, res) => {
   }
 });
 
+// Unsubscribe a sender: move all their emails to Deleted Items in Outlook and delete logs from database
+app.post('/api/emails/unsubscribe-sender', async (req, res) => {
+  const { sender_email, employee_email } = req.body;
+  if (!sender_email || !employee_email) {
+    return res.status(400).json({ error: 'Missing required fields: sender_email, employee_email' });
+  }
+
+  try {
+    // 1. Get all email logs from this sender for this employee
+    const emailRecords = await db.getEmailsBySender(employee_email, sender_email);
+    
+    // 2. Refresh/get valid Outlook access token
+    let accessToken = null;
+    try {
+      accessToken = await getValidAccessTokenForServer(employee_email);
+    } catch (tokenErr) {
+      console.warn(`Unsubscribe: Could not get Outlook access token for ${employee_email}:`, tokenErr.message);
+    }
+
+    // 3. Move emails to Deleted Items in Outlook (if token and message_id are valid)
+    if (accessToken && emailRecords.length > 0) {
+      for (const rec of emailRecords) {
+        if (rec.message_id && !rec.message_id.startsWith('msg-')) {
+          try {
+            const moveUrl = `https://graph.microsoft.com/v1.0/users/${employee_email}/messages/${rec.message_id}/move`;
+            const moveRes = await fetch(moveUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ destinationId: 'deleteditems' })
+            });
+            if (moveRes.ok) {
+              console.log(`Unsubscribe Sync: Successfully moved message ${rec.message_id} to Deleted Items`);
+            } else {
+              const errDetails = await moveRes.json().catch(() => ({}));
+              console.warn(`Unsubscribe Sync: Failed to move message ${rec.message_id}:`, errDetails.error?.message);
+            }
+          } catch (fetchErr) {
+            console.error(`Unsubscribe Sync: Fetch error moving message ${rec.message_id}:`, fetchErr.message);
+          }
+        }
+      }
+    }
+
+    // 4. Delete the email logs from the database
+    await db.deleteEmailsBySender(employee_email, sender_email);
+
+    res.json({ message: `Successfully unsubscribed and deleted all ${emailRecords.length} emails from ${sender_email}` });
+  } catch (error) {
+    console.error('Error unsubscribing sender:', error);
+    res.status(500).json({ error: 'Failed to unsubscribe and delete sender emails', details: error.message });
+  }
+});
+
 // Simulate receiving/sorting an email for testing
 app.post('/api/emails/simulate', async (req, res) => {
   const { sender_email, sender_name, subject, body, employee_email } = req.body;
@@ -528,9 +584,23 @@ async function getValidAccessTokenForServer(employeeEmail) {
   }
 }
 
-// Helper to get or create Outlook folder in server.js
 async function getOrCreateOutlookFolderForServer(employeeEmail, folderName, accessToken) {
   try {
+    if (!folderName) return null;
+    const lowerName = folderName.toLowerCase().trim();
+    if (lowerName === 'deleted items' || lowerName === 'deleteditems' || lowerName === 'trash') {
+      return 'deleteditems';
+    }
+    if (lowerName === 'archive') {
+      return 'archive';
+    }
+    if (lowerName === 'junkemail' || lowerName === 'junk email') {
+      return 'junkemail';
+    }
+    if (lowerName === 'inbox') {
+      return 'inbox';
+    }
+
     const listFoldersUrl = `https://graph.microsoft.com/v1.0/users/${employeeEmail}/mailFolders?$top=250`;
     const res = await fetch(listFoldersUrl, {
       headers: { 'Authorization': `Bearer ${accessToken}` }

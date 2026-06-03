@@ -1286,3 +1286,28 @@ input[type="checkbox"].custom-checkbox:checked::after {
   margin-top: -2.5px;
 }
 
+/* Subtle Action Buttons for Logs Table */
+.delete-log-btn {
+  opacity: 0.35;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+tr:hover .delete-log-btn {
+  opacity: 1;
+  color: #f43f5e;
+}
+
+.delete-log-btn:hover {
+  background: rgba(244, 63, 94, 0.08) !important;
+  color: #e11d48 !important;
+}
+
