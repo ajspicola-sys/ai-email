@@ -155,6 +155,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'mailbox', 'rules'
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [emails, setEmails] = useState([]);
+  const [selectedLogIds, setSelectedLogIds] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [rules, setRules] = useState([]);
   const [leads, setLeads] = useState([]);
@@ -390,6 +391,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/emails?employee_email=${encodeURIComponent(targetEmail)}`);
       const data = await res.json();
       setEmails(Array.isArray(data) ? data : []);
+      setSelectedLogIds([]);
     } catch (e) {
       console.error('Failed to fetch sorting logs:', e);
       setEmails([]);
@@ -427,7 +429,6 @@ export default function App() {
 
   const handleDeleteLog = async (id, e) => {
     if (e) e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this triage log entry? This will permanently remove it from the audit logs.')) return;
 
     try {
       const res = await fetch(`${API_BASE}/emails/${id}`, {
@@ -435,6 +436,7 @@ export default function App() {
       });
       if (res.ok) {
         setEmails(prev => prev.filter(email => email.id !== id));
+        setSelectedLogIds(prev => prev.filter(selectedId => selectedId !== id));
         showToast('Triage log entry deleted successfully.', 'success');
         if (activeDetailEmail && activeDetailEmail.id === id) {
           setActiveDetailEmail(null);
@@ -459,6 +461,7 @@ export default function App() {
       });
       if (res.ok) {
         setEmails([]);
+        setSelectedLogIds([]);
         showToast('All triage logs cleared successfully.', 'success');
         setActiveDetailEmail(null);
       } else {
@@ -467,6 +470,30 @@ export default function App() {
     } catch (err) {
       console.error(err);
       showToast('Network error clearing triage logs.', 'error', 'CONN_ERR');
+    }
+  };
+
+  const handleDeleteBatch = async () => {
+    if (selectedLogIds.length === 0) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/emails/delete-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedLogIds })
+      });
+
+      if (res.ok) {
+        setEmails(prev => prev.filter(email => !selectedLogIds.includes(email.id)));
+        showToast(`${selectedLogIds.length} triage logs deleted.`, 'success');
+        setSelectedLogIds([]);
+        setActiveDetailEmail(null);
+      } else {
+        await handleFetchError(res, 'Failed to batch delete logs.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Network error during batch deletion.', 'error', 'CONN_ERR');
     }
   };
 
@@ -494,6 +521,7 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem('sentry_user');
     setEmails([]);
+    setSelectedLogIds([]);
     triggerToast('Session closed.');
   };
 
@@ -902,6 +930,35 @@ export default function App() {
     currentPage * pageSize
   );
 
+  const allVisibleSelected = paginatedEmails.length > 0 && paginatedEmails.every(email => selectedLogIds.includes(email.id));
+
+  const handleSelectAllToggle = () => {
+    if (allVisibleSelected) {
+      const visibleIds = paginatedEmails.map(email => email.id);
+      setSelectedLogIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      const visibleIds = paginatedEmails.map(email => email.id);
+      setSelectedLogIds(prev => {
+        const next = [...prev];
+        visibleIds.forEach(id => {
+          if (!next.includes(id)) next.push(id);
+        });
+        return next;
+      });
+    }
+  };
+
+  const handleSelectRow = (id, e) => {
+    e.stopPropagation();
+    setSelectedLogIds(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(item => item !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
   const getEmailCountForCategory = (categoryName) => {
     return emails.filter(e => e.category === categoryName).length;
   };
@@ -1134,24 +1191,55 @@ export default function App() {
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
                       My Triage Audit History ({filteredEmails.length} matching)
                     </h3>
-                    {emails.length > 0 && (
-                      <button
-                        onClick={handleClearAllLogs}
-                        className="btn-secondary"
-                        style={{
-                          color: '#f43f5e',
-                          borderColor: 'rgba(244, 63, 94, 0.2)',
-                          background: '#fffefd',
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        <Icons.Trash style={{ width: '13px', height: '13px' }} /> Clear All Logs
-                      </button>
+                    {selectedLogIds.length > 0 ? (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginRight: '8px' }}>
+                          <strong>{selectedLogIds.length}</strong> items selected
+                        </span>
+                        <button
+                          onClick={() => setSelectedLogIds([])}
+                          className="btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '700' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleDeleteBatch}
+                          className="simulator-btn"
+                          style={{
+                            background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
+                            boxShadow: '0 10px 15px -3px rgba(244, 63, 94, 0.25)',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Icons.Trash style={{ width: '13px', height: '13px' }} /> Delete Selected
+                        </button>
+                      </div>
+                    ) : (
+                      emails.length > 0 && (
+                        <button
+                          onClick={handleClearAllLogs}
+                          className="btn-secondary"
+                          style={{
+                            color: '#f43f5e',
+                            borderColor: 'rgba(244, 63, 94, 0.2)',
+                            background: '#fffefd',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <Icons.Trash style={{ width: '13px', height: '13px' }} /> Clear All Logs
+                        </button>
+                      )
                     )}
                   </div>
                   
@@ -1167,6 +1255,14 @@ export default function App() {
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
                         <thead>
                           <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                            <th style={{ width: '40px', paddingLeft: '8px' }}>
+                              <input 
+                                type="checkbox" 
+                                checked={allVisibleSelected} 
+                                onChange={handleSelectAllToggle}
+                                style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                              />
+                            </th>
                             <th>Receiver (Employee)</th>
                             <th>Sender</th>
                             <th>Subject</th>
@@ -1180,7 +1276,7 @@ export default function App() {
                         <tbody>
                           {filteredEmails.length === 0 ? (
                             <tr>
-                              <td colSpan="8" style={{ textAlign: 'center', height: '120px', color: 'var(--text-muted)', fontSize: '13.5px' }}>
+                              <td colSpan="9" style={{ textAlign: 'center', height: '120px', color: 'var(--text-muted)', fontSize: '13.5px' }}>
                                 No sorted emails found. Try simulating traffic for {currentUser.email} using the Simulate button at the top!
                               </td>
                             </tr>
@@ -1189,9 +1285,22 @@ export default function App() {
                               <tr 
                                 key={email.id} 
                                 onClick={() => handleOpenDetailEmail(email)}
-                                style={{ height: '55px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                style={{ 
+                                  height: '55px', 
+                                  color: 'var(--text-primary)', 
+                                  cursor: 'pointer',
+                                  backgroundColor: selectedLogIds.includes(email.id) ? 'rgba(59, 130, 246, 0.04)' : ''
+                                }}
                                 title="Click to view detailed AI analysis & generate email draft response"
                               >
+                                <td style={{ paddingLeft: '8px' }} onClick={(e) => e.stopPropagation()}>
+                                  <input 
+                                    type="checkbox" 
+                                    checked={selectedLogIds.includes(email.id)} 
+                                    onChange={(e) => handleSelectRow(email.id, e)}
+                                    style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                                  />
+                                </td>
                                 <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{email.employee_email}</td>
                                 <td style={{ fontWeight: '500' }}>{email.sender_name}</td>
                                 <td style={{ fontWeight: '600' }}>{email.subject}</td>

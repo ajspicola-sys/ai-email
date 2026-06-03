@@ -364,6 +364,23 @@ const db = {
     }
   },
 
+  async deleteEmailsBatch(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('emails')
+        .delete()
+        .in('id', ids);
+      if (error) {
+        console.error('Supabase deleteEmailsBatch error:', error);
+        throw error;
+      }
+    } else {
+      const placeholders = ids.map(() => '?').join(',');
+      await dbRun(`DELETE FROM emails WHERE id IN (${placeholders})`, ids);
+    }
+  },
+
   async clearAllEmails(employeeEmail) {
     if (isSupabaseConfigured) {
       let query = supabase.from('emails').delete();

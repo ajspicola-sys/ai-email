@@ -272,6 +272,22 @@ app.delete('/api/emails', async (req, res) => {
   }
 });
 
+// Delete multiple email logs in batch
+app.post('/api/emails/delete-batch', async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'Missing list of email log IDs to delete' });
+  }
+
+  try {
+    await db.deleteEmailsBatch(ids);
+    res.json({ message: `${ids.length} email logs deleted successfully` });
+  } catch (error) {
+    console.error('Error batch deleting email logs:', error);
+    res.status(500).json({ error: 'Failed to batch delete email logs', details: error.message });
+  }
+});
+
 // Simulate receiving/sorting an email for testing
 app.post('/api/emails/simulate', async (req, res) => {
   const { sender_email, sender_name, subject, body, employee_email } = req.body;
