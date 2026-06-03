@@ -67,7 +67,22 @@ export async function analyzeEmail(subject, body, folders = ['Support', 'Sales',
                   "category": "string", (Choose exactly one category name from the list above)
                   "urgency": "string", (Choose exactly one from ["High", "Medium", "Low"])
                   "sentiment": "string", (Choose exactly one from ["Positive", "Neutral", "Negative"])
-                  "summary": "string" (A very brief 1-sentence summary of what the sender wants)
+                  "summary": "string", (A very brief 1-sentence summary of what the sender wants)
+                  "lead": {
+                    "is_lead": boolean, (true if this is a sales lead, inquiry, demo, pricing, or appointment request, false otherwise)
+                    "name": "string or null", (sender's name if extracted)
+                    "email": "string or null", (sender's email if extracted)
+                    "phone": "string or null", (phone number if found, otherwise null)
+                    "company": "string or null", (company if found, otherwise null)
+                    "service_requested": "string or null", (specific service or product requested if found, otherwise null)
+                    "lead_score": number (buying intent score 0-100: e.g. wants pricing today -> 90+, just looking -> 30)
+                  } or null,
+                  "tasks": [ (Action items or follow-ups requested by sender or required for receiver)
+                    {
+                      "description": "string", (action item summary, e.g. 'Send botox pricing')
+                      "due_date": "string or null" (due date in YYYY-MM-DD format if mentioned, e.g. 'before Friday', otherwise null)
+                    }
+                  ]
                 }
 
                 Here is the email to analyze:
@@ -121,7 +136,22 @@ export async function analyzeEmail(subject, body, folders = ['Support', 'Sales',
         "category": "string", (Choose exactly one category name from the list above. Choose "General" if it doesn't match any specific category guidelines)
         "urgency": "string", (Choose exactly one from ["High", "Medium", "Low"])
         "sentiment": "string", (Choose exactly one from ["Positive", "Neutral", "Negative"])
-        "summary": "string" (A very brief 1-sentence summary of what the sender wants)
+        "summary": "string", (A very brief 1-sentence summary of what the sender wants)
+        "lead": {
+          "is_lead": boolean, (true if this is a sales lead, inquiry, demo, pricing, or appointment request, false otherwise)
+          "name": "string or null",
+          "email": "string or null",
+          "phone": "string or null",
+          "company": "string or null",
+          "service_requested": "string or null",
+          "lead_score": number
+        } or null,
+        "tasks": [
+          {
+            "description": "string",
+            "due_date": "string or null"
+          }
+        ]
       }
 
       Here is the email to analyze:
@@ -284,7 +314,28 @@ function simulateAnalysis(subject, body, folders = ['Support', 'Sales', 'Billing
     sentiment = 'Positive';
   }
 
-  return { category, urgency, sentiment, summary };
+  let lead = null;
+  if (plainText.includes('quote') || plainText.includes('pricing') || plainText.includes('estimate') || plainText.includes('botox') || plainText.includes('laser') || plainText.includes('buy') || plainText.includes('demo') || plainText.includes('schedule')) {
+    lead = {
+      is_lead: true,
+      name: 'Simulated Sender',
+      email: 'simulated@sender.com',
+      phone: '555-0199',
+      company: 'Pied Piper Corp',
+      service_requested: plainText.includes('botox') ? 'Botox Treatment' : (plainText.includes('laser') ? 'Laser Hair Removal' : 'Consultation Details'),
+      lead_score: plainText.includes('urgent') ? 95 : 70
+    };
+  }
+
+  let tasks = [];
+  if (plainText.includes('send') || plainText.includes('quote') || plainText.includes('tomorrow') || plainText.includes('reply') || plainText.includes('schedule')) {
+    tasks.push({
+      description: plainText.includes('quote') ? 'Send quote for requested services' : 'Follow up with sender regarding booking appointment',
+      due_date: new Date(Date.now() + 86400000).toISOString().split('T')[0]
+    });
+  }
+
+  return { category, urgency, sentiment, summary, lead, tasks };
 }
 
 function simulateDraft(sender, subject, body, tone) {

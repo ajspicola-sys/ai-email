@@ -423,6 +423,154 @@ const db = {
     } else {
       await dbRun("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [key, value]);
     }
+  },
+
+  async getLeads(employeeEmail) {
+    if (isSupabaseConfigured) {
+      let query = supabase.from('leads').select('*');
+      if (employeeEmail) {
+        query = query.eq('employee_email', employeeEmail.toLowerCase().trim());
+      }
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        console.error('Supabase getLeads error:', error);
+        throw error;
+      }
+      return data || [];
+    } else {
+      if (employeeEmail) {
+        return await dbAll('SELECT * FROM leads WHERE employee_email = ? ORDER BY created_at DESC', [employeeEmail.toLowerCase().trim()]);
+      } else {
+        return await dbAll('SELECT * FROM leads ORDER BY created_at DESC');
+      }
+    }
+  },
+
+  async saveLead(employeeEmail, name, email, phone, company, serviceRequested, leadScore) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('leads')
+        .insert([{
+          employee_email: employeeEmail,
+          name,
+          email,
+          phone,
+          company,
+          service_requested: serviceRequested,
+          lead_score: leadScore
+        }])
+        .select()
+        .single();
+      if (error) {
+        console.error('Supabase saveLead error:', error);
+        throw error;
+      }
+      return data;
+    } else {
+      const result = await dbRun(`
+        INSERT INTO leads (employee_email, name, email, phone, company, service_requested, lead_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [employeeEmail, name, email, phone, company, serviceRequested, leadScore]);
+      return await dbGet('SELECT * FROM leads WHERE id = ?', [result.id]);
+    }
+  },
+
+  async deleteLead(id) {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        console.error('Supabase deleteLead error:', error);
+        throw error;
+      }
+    } else {
+      await dbRun('DELETE FROM leads WHERE id = ?', [id]);
+    }
+  },
+
+  async getTasks(employeeEmail) {
+    if (isSupabaseConfigured) {
+      let query = supabase.from('tasks').select('*');
+      if (employeeEmail) {
+        query = query.eq('employee_email', employeeEmail.toLowerCase().trim());
+      }
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) {
+        console.error('Supabase getTasks error:', error);
+        throw error;
+      }
+      return data || [];
+    } else {
+      if (employeeEmail) {
+        return await dbAll('SELECT * FROM tasks WHERE employee_email = ? ORDER BY created_at DESC', [employeeEmail.toLowerCase().trim()]);
+      } else {
+        return await dbAll('SELECT * FROM tasks ORDER BY created_at DESC');
+      }
+    }
+  },
+
+  async saveTask(employeeEmail, description, dueDate, sourceEmailId) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert([{
+          employee_email: employeeEmail,
+          description,
+          due_date: dueDate,
+          status: 'Pending',
+          source_email_id: sourceEmailId
+        }])
+        .select()
+        .single();
+      if (error) {
+        console.error('Supabase saveTask error:', error);
+        throw error;
+      }
+      return data;
+    } else {
+      const result = await dbRun(`
+        INSERT INTO tasks (employee_email, description, due_date, status, source_email_id)
+        VALUES (?, ?, ?, 'Pending', ?)
+      `, [employeeEmail, description, dueDate, sourceEmailId]);
+      return await dbGet('SELECT * FROM tasks WHERE id = ?', [result.id]);
+    }
+  },
+
+  async toggleTaskStatus(id, currentStatus) {
+    const nextStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({ status: nextStatus })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        console.error('Supabase toggleTaskStatus error:', error);
+        throw error;
+      }
+      return data;
+    } else {
+      await dbRun('UPDATE tasks SET status = ? WHERE id = ?', [nextStatus, id]);
+      return await dbGet('SELECT * FROM tasks WHERE id = ?', [id]);
+    }
+  },
+
+  async deleteTask(id) {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        console.error('Supabase deleteTask error:', error);
+        throw error;
+      }
+    } else {
+      await dbRun('DELETE FROM tasks WHERE id = ?', [id]);
+    }
   }
 };
 

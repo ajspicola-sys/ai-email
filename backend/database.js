@@ -131,6 +131,34 @@ function initializeDatabase() {
       )
     `);
 
+    // 5. Create leads table to log CRM leads extracted
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS leads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_email TEXT NOT NULL,
+        name TEXT,
+        email TEXT,
+        phone TEXT,
+        company TEXT,
+        service_requested TEXT,
+        lead_score INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // 6. Create tasks table to log extracted checklist items
+    await dbRun(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_email TEXT NOT NULL,
+        description TEXT NOT NULL,
+        due_date TEXT,
+        status TEXT DEFAULT 'Pending',
+        source_email_id INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Clear legacy rules so we can repopulate with the new personal default categories
     const hasLegacySupport = await dbGet("SELECT COUNT(*) as count FROM rules WHERE category = 'Support' OR category = 'Customer Support'");
     if (hasLegacySupport.count > 0) {

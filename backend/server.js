@@ -284,6 +284,32 @@ app.post('/api/emails/simulate', async (req, res) => {
       analysis.sentiment,
       analysis.summary
     );
+
+    // Save CRM Lead if extracted
+    if (analysis.lead && analysis.lead.is_lead) {
+      await db.saveLead(
+        employee_email,
+        analysis.lead.name || sender_name || sender_email.split('@')[0],
+        analysis.lead.email || sender_email,
+        analysis.lead.phone || null,
+        analysis.lead.company || null,
+        analysis.lead.service_requested || null,
+        analysis.lead.lead_score || 50
+      );
+    }
+
+    // Save Checklist Tasks if extracted
+    if (analysis.tasks && analysis.tasks.length > 0) {
+      for (const t of analysis.tasks) {
+        await db.saveTask(
+          employee_email,
+          t.description,
+          t.due_date || null,
+          created.id
+        );
+      }
+    }
+
     res.status(201).json(created);
   } catch (error) {
     console.error('Error simulating email:', error);
@@ -346,6 +372,68 @@ app.delete('/api/rules/:category', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message || 'Failed to delete rule', code: error.code || 'DB_ERR' });
+  }
+});
+
+// ----------------------------------------------------
+// 4b. LEADS AND TASKS API ENDPOINTS
+// ----------------------------------------------------
+
+// Get CRM extracted leads
+app.get('/api/leads', async (req, res) => {
+  const { employee_email } = req.query;
+  try {
+    const leads = await db.getLeads(employee_email);
+    res.json(leads);
+  } catch (error) {
+    console.error('Error fetching leads:', error);
+    res.status(500).json({ error: 'Failed to fetch leads', details: error.message });
+  }
+});
+
+// Remove a lead
+app.delete('/api/leads/:id', async (req, res) => {
+  try {
+    await db.deleteLead(req.params.id);
+    res.json({ message: 'Lead deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting lead:', error);
+    res.status(500).json({ error: 'Failed to delete lead', details: error.message });
+  }
+});
+
+// Get extracted checklist tasks
+app.get('/api/tasks', async (req, res) => {
+  const { employee_email } = req.query;
+  try {
+    const tasks = await db.getTasks(employee_email);
+    res.json(tasks);
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks', details: error.message });
+  }
+});
+
+// Toggle checklist task status
+app.put('/api/tasks/:id/toggle', async (req, res) => {
+  const { status } = req.body;
+  try {
+    const updated = await db.toggleTaskStatus(req.params.id, status);
+    res.json(updated);
+  } catch (error) {
+    console.error('Error toggling task:', error);
+    res.status(500).json({ error: 'Failed to toggle task status', details: error.message });
+  }
+});
+
+// Delete a task
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    await db.deleteTask(req.params.id);
+    res.json({ message: 'Task deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    res.status(500).json({ error: 'Failed to delete task', details: error.message });
   }
 });
 

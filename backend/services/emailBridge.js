@@ -184,7 +184,7 @@ async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
       const analysis = await analyzeEmail(subject, body, activeRules);
 
       // 2. Log sorting audit trail in SQLite
-      await db.saveEmail(
+      const savedEmail = await db.saveEmail(
         employeeEmail,
         senderEmail,
         senderName,
@@ -196,6 +196,33 @@ async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
         analysis.summary,
         message.id
       );
+
+      // Save CRM Lead if extracted
+      if (analysis.lead && analysis.lead.is_lead) {
+        await db.saveLead(
+          employeeEmail,
+          analysis.lead.name || senderName,
+          analysis.lead.email || senderEmail,
+          analysis.lead.phone || null,
+          analysis.lead.company || null,
+          analysis.lead.service_requested || null,
+          analysis.lead.lead_score || 50
+        );
+        console.log(`AI Lead Extracted: ${analysis.lead.name || senderName} (${analysis.lead.service_requested || 'General'})`);
+      }
+
+      // Save Checklist Tasks if extracted
+      if (analysis.tasks && analysis.tasks.length > 0) {
+        for (const t of analysis.tasks) {
+          await db.saveTask(
+            employeeEmail,
+            t.description,
+            t.due_date || null,
+            savedEmail.id
+          );
+        }
+        console.log(`AI Checklist Tasks Extracted: ${analysis.tasks.length} item(s)`);
+      }
 
       console.log(`AI classified email from ${senderName} into category folder: "${analysis.category}"`);
 

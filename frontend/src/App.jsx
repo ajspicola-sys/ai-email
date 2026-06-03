@@ -134,6 +134,8 @@ export default function App() {
   const [emails, setEmails] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [rules, setRules] = useState([]);
+  const [leads, setLeads] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [profileForm, setProfileForm] = useState({ name: '', email: '', password: '', avatar: '' });
   const [cropImageSrc, setCropImageSrc] = useState('');
   const [showCropper, setShowCropper] = useState(false);
@@ -222,8 +224,88 @@ export default function App() {
 
   const loadUserData = async (email) => {
     setInitialFetchLoading(true);
-    await fetchLogs(email);
+    await Promise.all([
+      fetchLogs(email),
+      fetchLeads(email),
+      fetchTasks(email)
+    ]);
     setInitialFetchLoading(false);
+  };
+
+  const fetchLeads = async (email) => {
+    const targetEmail = email || (currentUser ? currentUser.email : '');
+    if (!targetEmail) return;
+    try {
+      const res = await fetch(`${API_BASE}/leads?employee_email=${encodeURIComponent(targetEmail)}`);
+      const data = await res.json();
+      setLeads(data);
+    } catch (e) {
+      console.error('Failed to fetch leads:', e);
+    }
+  };
+
+  const handleDeleteLead = async (id) => {
+    if (!confirm('Are you sure you want to remove this CRM lead?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/leads/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setLeads(prev => prev.filter(l => l.id !== id));
+        triggerToast('Lead deleted successfully.');
+      } else {
+        await handleFetchError(res, 'Failed to delete lead.');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Network error deleting lead.', 'error', 'CONN_ERR');
+    }
+  };
+
+  const fetchTasks = async (email) => {
+    const targetEmail = email || (currentUser ? currentUser.email : '');
+    if (!targetEmail) return;
+    try {
+      const res = await fetch(`${API_BASE}/tasks?employee_email=${encodeURIComponent(targetEmail)}`);
+      const data = await res.json();
+      setTasks(data);
+    } catch (e) {
+      console.error('Failed to fetch tasks:', e);
+    }
+  };
+
+  const handleToggleTask = async (id, currentStatus) => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${id}/toggle`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: currentStatus })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setTasks(prev => prev.map(t => t.id === id ? { ...t, status: updated.status } : t));
+        triggerToast(`Task status updated!`);
+      } else {
+        await handleFetchError(res, 'Failed to update task.');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Network error updating task.', 'error', 'CONN_ERR');
+    }
+  };
+
+  const handleDeleteTask = async (id) => {
+    if (!confirm('Are you sure you want to delete this action checklist task?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setTasks(prev => prev.filter(t => t.id !== id));
+        triggerToast('Task deleted successfully.');
+      } else {
+        await handleFetchError(res, 'Failed to delete task.');
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Network error deleting task.', 'error', 'CONN_ERR');
+    }
   };
 
   const showToast = (message, type = 'success', code = '') => {
@@ -756,6 +838,14 @@ export default function App() {
               <Icons.Folder />
               Folder Guidelines
             </div>
+            <div className={`nav-item ${activeTab === 'leads' ? 'active' : ''}`} onClick={() => setActiveTab('leads')}>
+              <Icons.Users />
+              CRM Sales Leads
+            </div>
+            <div className={`nav-item ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>
+              <Icons.Check />
+              Action Checklists
+            </div>
           </nav>
         </div>
         <div className="sidebar-profile-card">
@@ -780,6 +870,8 @@ export default function App() {
             {activeTab === 'overview' && 'Real-Time Inbox Audit Logs'}
             {activeTab === 'mailbox' && 'My Mailbox Connection'}
             {activeTab === 'rules' && 'AI Organizing Folder Rules'}
+            {activeTab === 'leads' && 'Automated Sales CRM Leads'}
+            {activeTab === 'tasks' && 'Automated Action Item Checklists'}
             {activeTab === 'settings' && 'Account Profile Settings'}
           </h1>
           
@@ -1390,6 +1482,185 @@ export default function App() {
               </div>
             )}
 
+            {/* CRM SALES LEADS TAB */}
+            {activeTab === 'leads' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div className="glass-card no-hover" style={{ padding: '32px', cursor: 'default' }}>
+                  <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+                      Sales & Growth CRM Leads
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+                      Automatically extracted contact information and purchase intent scores (1-100) from incoming inquiries.
+                    </p>
+                  </div>
+
+                  {initialFetchLoading ? (
+                    <div style={{ padding: '20px 0' }}>
+                      <div className="skeleton-text" style={{ width: '100%', marginBottom: '12px' }}></div>
+                      <div className="skeleton-text" style={{ width: '90%', marginBottom: '12px' }}></div>
+                      <div className="skeleton-text" style={{ width: '95%' }}></div>
+                    </div>
+                  ) : leads.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                      <Icons.Users style={{ width: '48px', height: '48px', color: 'var(--text-muted)', opacity: 0.5, marginBottom: '16px' }} />
+                      <div style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-secondary)' }}>No CRM Leads Found Yet</div>
+                      <p style={{ fontSize: '12.5px', marginTop: '4px', maxWidth: '400px', margin: '4px auto 0' }}>
+                        Simulate an email containing pricing queries, appointment booking requests, or quotes to see contact details extracted automatically!
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-secondary)' }}>
+                            <th>Lead Contact</th>
+                            <th>Company</th>
+                            <th>Service Requested</th>
+                            <th>Lead Score</th>
+                            <th>Date Extracted</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leads.map(lead => {
+                            const hue = lead.lead_score ? Math.min(Math.max((lead.lead_score - 10) * 1.5, 0), 120) : 0;
+                            const isHot = lead.lead_score >= 80;
+                            return (
+                              <tr key={lead.id} style={{ height: '65px', color: 'var(--text-primary)' }}>
+                                <td>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{lead.name || 'Anonymous'}</span>
+                                    <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>{lead.email}</span>
+                                    {lead.phone && <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{lead.phone}</span>}
+                                  </div>
+                                </td>
+                                <td style={{ fontWeight: '600' }}>{lead.company || 'N/A'}</td>
+                                <td style={{ color: 'var(--accent-purple)', fontWeight: '700' }}>{lead.service_requested || 'General Inquiry'}</td>
+                                <td>
+                                  <span style={{ 
+                                    background: `hsla(${hue}, 80%, 45%, 0.1)`, 
+                                    color: `hsl(${hue}, 80%, 30%)`,
+                                    border: `1px solid hsla(${hue}, 80%, 45%, 0.3)`,
+                                    padding: '4px 10px',
+                                    borderRadius: '12px',
+                                    fontWeight: '800',
+                                    fontSize: '11.5px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}>
+                                    {lead.lead_score} {isHot && '🔥'}
+                                  </span>
+                                </td>
+                                <td style={{ color: 'var(--text-secondary)' }}>{new Date(lead.created_at).toLocaleDateString()}</td>
+                                <td>
+                                  <button
+                                    onClick={() => handleDeleteLead(lead.id)}
+                                    className="btn-secondary"
+                                    style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '4px 10px', fontSize: '11px' }}
+                                  >
+                                    Delete
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ACTION CHECKLISTS TAB */}
+            {activeTab === 'tasks' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div className="glass-card no-hover" style={{ padding: '32px', cursor: 'default' }}>
+                  <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', color: 'var(--text-primary)', margin: 0 }}>
+                      Action Item Checklists
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', margin: 0 }}>
+                      Checklist tasks automatically extracted from customer messages. Mark items completed to keep organized.
+                    </p>
+                  </div>
+
+                  {initialFetchLoading ? (
+                    <div style={{ padding: '20px 0' }}>
+                      <div className="skeleton-text" style={{ width: '100%', marginBottom: '12px' }}></div>
+                      <div className="skeleton-text" style={{ width: '80%' }}></div>
+                    </div>
+                  ) : tasks.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                      <Icons.Check style={{ width: '48px', height: '48px', color: 'var(--text-muted)', opacity: 0.5, marginBottom: '16px' }} />
+                      <div style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-secondary)' }}>No Checklist Tasks Pending</div>
+                      <p style={{ fontSize: '12.5px', marginTop: '4px', maxWidth: '400px', margin: '4px auto 0' }}>
+                        When emails with explicit requests like "Send me the price quote tomorrow" are processed, tasks will appear here automatically!
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {tasks.map(task => {
+                        const isCompleted = task.status === 'Completed';
+                        return (
+                          <div 
+                            key={task.id} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'space-between', 
+                              padding: '16px 20px', 
+                              background: isCompleted ? '#f8fafc' : '#ffffff', 
+                              border: '1px solid var(--border-color)', 
+                              borderRadius: 'var(--radius-md)', 
+                              transition: 'var(--transition-smooth)',
+                              boxShadow: 'var(--shadow-sm)',
+                              opacity: isCompleted ? 0.7 : 1
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexGrow: 1 }}>
+                              <input 
+                                type="checkbox" 
+                                checked={isCompleted} 
+                                onChange={() => handleToggleTask(task.id, task.status)}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-blue)' }}
+                              />
+                              
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ 
+                                  fontSize: '14px', 
+                                  fontWeight: '700', 
+                                  color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)',
+                                  textDecoration: isCompleted ? 'line-through' : 'none'
+                                }}>
+                                  {task.description}
+                                </span>
+                                {task.due_date && (
+                                  <span style={{ fontSize: '11px', color: 'var(--urgency-high-text)', background: 'var(--urgency-high-bg)', width: 'fit-content', padding: '1px 8px', borderRadius: '4px', fontWeight: '800', marginTop: '4px' }}>
+                                    Due: {task.due_date}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="btn-secondary"
+                              style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.2)', padding: '6px 12px', fontSize: '11.5px' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Scroll Spacer to guarantee room to scroll past content */}
             <div className="scroll-spacer" style={{ height: '80px', flexShrink: 0 }} />
           </div>
@@ -1406,6 +1677,44 @@ export default function App() {
               </h3>
               <button type="button" className="close-btn" onClick={() => setActiveDetailEmail(null)}>&times;</button>
             </div>
+
+            {/* Quick Unsubscribe / Archive Cleaner Banner */}
+            {activeDetailEmail.category === 'Newsletters & Feeds' && (
+              <div style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', border: '1px solid #f59e0b', borderRadius: '12px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ textAlign: 'left' }}>
+                  <h5 style={{ margin: 0, fontWeight: '800', color: '#78350f', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Icons.AlertTriangle style={{ color: '#d97706', width: '16px', height: '16px' }} />
+                    Marketing / Newsletter Subscription Detected
+                  </h5>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#92400e' }}>
+                    This message is classified under news feeds or promotions. Clean up your linked Outlook inbox instantly.
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Are you sure you want to clean up this newsletter? Sentry will instantly move it to Deleted Items in Outlook.')) return;
+                    try {
+                      const res = await fetch(`${API_BASE}/emails/${activeDetailEmail.id}/reroute`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ category: 'Deleted Items' })
+                      });
+                      if (res.ok) {
+                        setEmails(prev => prev.filter(e => e.id !== activeDetailEmail.id));
+                        setActiveDetailEmail(null);
+                        triggerToast('Newsletter successfully deleted from Outlook mailbox!');
+                      }
+                    } catch (e) {
+                      triggerToast('Failed to complete cleanup');
+                    }
+                  }}
+                  className="simulator-btn"
+                  style={{ background: '#78350f', color: '#ffffff', border: 'none', padding: '8px 16px', fontSize: '12px', boxShadow: 'none' }}
+                >
+                  <Icons.X style={{ width: '13px', height: '13px' }} /> Unsubscribe & Delete
+                </button>
+              </div>
+            )}
 
             <div className="detail-grid">
               {/* Left Column: Email Content */}
