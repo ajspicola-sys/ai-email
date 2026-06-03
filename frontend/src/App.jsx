@@ -121,7 +121,7 @@ const Icons = {
   )
 };
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000/api' : '/api';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -833,7 +833,7 @@ export default function App() {
                   </div>
                 </div>
                 <a
-                  href="http://localhost:5000/api/auth/login"
+                  href={`${API_BASE}/auth/login`}
                   className="simulator-btn"
                   style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '40px', flexShrink: 0 }}
                 >
@@ -1047,7 +1047,7 @@ export default function App() {
                             Securely authenticate using your Microsoft credentials to authorize background AI sorting and directory operations.
                           </p>
                           <a
-                            href="http://localhost:5000/api/auth/login"
+                            href={`${API_BASE}/auth/login`}
                             className="simulator-btn"
                             style={{ textDecoration: 'none', width: 'fit-content', marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '40px' }}
                           >
@@ -1638,7 +1638,7 @@ export default function App() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <a
-                href="http://localhost:5000/api/auth/login"
+                href={`${API_BASE}/auth/login`}
                 className="submit-btn"
                 style={{ 
                   textDecoration: 'none', 

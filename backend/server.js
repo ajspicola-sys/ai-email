@@ -61,10 +61,13 @@ app.get('/api/auth/login', async (req, res) => {
 // OAuth Callback from Microsoft
 app.get('/api/auth/callback', async (req, res) => {
   const { code, error, error_description } = req.query;
+  const clientUrl = req.get('host').includes('localhost') 
+    ? 'http://localhost:5173' 
+    : `${req.protocol}://${req.get('host')}`;
 
   if (error) {
     console.error('OAuth Callback Microsoft Error:', error_description);
-    return res.redirect(`http://localhost:5173?error=${encodeURIComponent(error_description)}`);
+    return res.redirect(`${clientUrl}?error=${encodeURIComponent(error_description)}`);
   }
 
   if (!code) {
@@ -119,7 +122,7 @@ app.get('/api/auth/callback', async (req, res) => {
     console.log(`Successfully connected mailbox via OAuth: ${email}`);
 
     // Redirect employee back to homepage with success parameter
-    res.redirect(`http://localhost:5173?status=connected&email=${encodeURIComponent(email)}`);
+    res.redirect(`${clientUrl}?status=connected&email=${encodeURIComponent(email)}`);
   } catch (error) {
     console.error('OAuth Callback Error:', error);
     res.status(500).send('OAuth Authentication Processing Failed.');
