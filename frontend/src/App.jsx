@@ -123,6 +123,21 @@ const Icons = {
 
 const API_BASE = window.location.origin.includes('localhost') ? 'http://localhost:5000/api' : '/api';
 
+const isPromoEmail = (email) => {
+  if (!email) return false;
+  const bodyText = (email.body || '').toLowerCase();
+  const subjectText = (email.subject || '').toLowerCase();
+  return email.category === 'Newsletters & Feeds' || 
+         email.category === 'Promotions' || 
+         bodyText.includes('unsubscribe') || 
+         bodyText.includes('opt-out') || 
+         bodyText.includes('opt out') || 
+         bodyText.includes('subscription') ||
+         subjectText.includes('unsubscribe') ||
+         subjectText.includes('newsletter') ||
+         subjectText.includes('promo');
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('sentry_user');
@@ -238,9 +253,10 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/leads?employee_email=${encodeURIComponent(targetEmail)}`);
       const data = await res.json();
-      setLeads(data);
+      setLeads(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to fetch leads:', e);
+      setLeads([]);
     }
   };
 
@@ -249,7 +265,7 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/leads/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setLeads(prev => prev.filter(l => l.id !== id));
+        setLeads(prev => Array.isArray(prev) ? prev.filter(l => l.id !== id) : []);
         triggerToast('Lead deleted successfully.');
       } else {
         await handleFetchError(res, 'Failed to delete lead.');
@@ -266,9 +282,10 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/tasks?employee_email=${encodeURIComponent(targetEmail)}`);
       const data = await res.json();
-      setTasks(data);
+      setTasks(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to fetch tasks:', e);
+      setTasks([]);
     }
   };
 
@@ -281,7 +298,7 @@ export default function App() {
       });
       if (res.ok) {
         const updated = await res.json();
-        setTasks(prev => prev.map(t => t.id === id ? { ...t, status: updated.status } : t));
+        setTasks(prev => Array.isArray(prev) ? prev.map(t => t.id === id ? { ...t, status: updated.status } : t) : []);
         triggerToast(`Task status updated!`);
       } else {
         await handleFetchError(res, 'Failed to update task.');
@@ -297,7 +314,7 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/tasks/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setTasks(prev => prev.filter(t => t.id !== id));
+        setTasks(prev => Array.isArray(prev) ? prev.filter(t => t.id !== id) : []);
         triggerToast('Task deleted successfully.');
       } else {
         await handleFetchError(res, 'Failed to delete task.');
@@ -364,9 +381,10 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/emails?employee_email=${encodeURIComponent(targetEmail)}`);
       const data = await res.json();
-      setEmails(data);
+      setEmails(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to fetch sorting logs:', e);
+      setEmails([]);
     }
   };
 
@@ -374,13 +392,14 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/employees`);
       const data = await res.json();
-      setEmployees(data);
+      const dataArray = Array.isArray(data) ? data : [];
+      setEmployees(dataArray);
       
       // Update session if it changed in database
       const saved = localStorage.getItem('sentry_user');
       if (saved) {
         const parsed = JSON.parse(saved);
-        const latest = data.find(emp => emp.email.toLowerCase() === parsed.email.toLowerCase());
+        const latest = dataArray.find(emp => emp.email.toLowerCase() === parsed.email.toLowerCase());
         if (latest && latest.status !== parsed.status) {
           const updated = { ...parsed, status: latest.status };
           setCurrentUser(updated);
@@ -390,10 +409,11 @@ export default function App() {
 
       const params = new URLSearchParams(window.location.search);
       if (params.get('status') === 'connected') {
-        checkUrlParams(data);
+        checkUrlParams(dataArray);
       }
     } catch (e) {
       console.error('Failed to fetch team list:', e);
+      setEmployees([]);
     }
   };
 
@@ -401,9 +421,10 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/rules`);
       const data = await res.json();
-      setRules(data);
+      setRules(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to fetch folder rules:', e);
+      setRules([]);
     }
   };
 
@@ -721,6 +742,35 @@ export default function App() {
       showToast('Network error during simulation.', 'error', 'CONN_ERR');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyPreset = (type) => {
+    const currentEmployeeEmail = simForm.employee_email || (currentUser ? currentUser.email : '');
+    if (type === 'lead') {
+      setSimForm({
+        sender_name: 'Alice Johnson',
+        sender_email: 'alice@example.com',
+        subject: 'Quote & Pricing Request for Botox / Laser Treatments',
+        body: 'Hi there, I am interested in scheduling Botox treatments and laser hair removal services at your clinic. Could you please send me a price list / estimate and let me know what appointment slots are open for next week? Thanks! Phone: 555-0199.',
+        employee_email: currentEmployeeEmail
+      });
+    } else if (type === 'task') {
+      setSimForm({
+        sender_name: 'Michael Scott',
+        sender_email: 'michael@dundermifflin.com',
+        subject: 'URGENT: Project Status Update Report',
+        body: 'Hi, please review the latest email status report and send me the completed invoice sheet by tomorrow afternoon. We need to finalize the Dunder Mifflin budget. Thanks!',
+        employee_email: currentEmployeeEmail
+      });
+    } else if (type === 'promo') {
+      setSimForm({
+        sender_name: 'Netflix Promotions',
+        sender_email: 'info@mailer.netflix.com',
+        subject: 'New movies and TV shows added this week!',
+        body: 'Welcome back to Netflix! Here is your weekly digest of new releases. Opt out of future emails by clicking here: unsubscribe.',
+        employee_email: currentEmployeeEmail
+      });
     }
   };
 
@@ -1070,7 +1120,16 @@ export default function App() {
                                 <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{email.employee_email}</td>
                                 <td style={{ fontWeight: '500' }}>{email.sender_name}</td>
                                 <td style={{ fontWeight: '600' }}>{email.subject}</td>
-                                <td><span className="badge badge-category">{email.category}</span></td>
+                                <td>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span className="badge badge-category" style={{ width: 'fit-content' }}>{email.category}</span>
+                                    {isPromoEmail(email) && (
+                                      <span style={{ fontSize: '9.5px', background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px', width: 'fit-content', fontWeight: '800' }}>
+                                        🏷️ Promotion
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
                                 <td><span className={`badge badge-urgency-${email.urgency.toLowerCase()}`}>{email.urgency}</span></td>
                                 <td style={{ color: 'var(--text-secondary)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.summary}</td>
                                 <td style={{ color: 'var(--text-secondary)' }}>{new Date(email.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
@@ -1501,7 +1560,7 @@ export default function App() {
                       <div className="skeleton-text" style={{ width: '90%', marginBottom: '12px' }}></div>
                       <div className="skeleton-text" style={{ width: '95%' }}></div>
                     </div>
-                  ) : leads.length === 0 ? (
+                  ) : (!Array.isArray(leads) || leads.length === 0) ? (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
                       <Icons.Users style={{ width: '48px', height: '48px', color: 'var(--text-muted)', opacity: 0.5, marginBottom: '16px' }} />
                       <div style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-secondary)' }}>No CRM Leads Found Yet</div>
@@ -1523,7 +1582,7 @@ export default function App() {
                           </tr>
                         </thead>
                         <tbody>
-                          {leads.map(lead => {
+                          {Array.isArray(leads) && leads.map(lead => {
                             const hue = lead.lead_score ? Math.min(Math.max((lead.lead_score - 10) * 1.5, 0), 120) : 0;
                             const isHot = lead.lead_score >= 80;
                             return (
@@ -1592,7 +1651,7 @@ export default function App() {
                       <div className="skeleton-text" style={{ width: '100%', marginBottom: '12px' }}></div>
                       <div className="skeleton-text" style={{ width: '80%' }}></div>
                     </div>
-                  ) : tasks.length === 0 ? (
+                  ) : (!Array.isArray(tasks) || tasks.length === 0) ? (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
                       <Icons.Check style={{ width: '48px', height: '48px', color: 'var(--text-muted)', opacity: 0.5, marginBottom: '16px' }} />
                       <div style={{ fontSize: '14.5px', fontWeight: '700', color: 'var(--text-secondary)' }}>No Checklist Tasks Pending</div>
@@ -1602,7 +1661,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      {tasks.map(task => {
+                      {Array.isArray(tasks) && tasks.map(task => {
                         const isCompleted = task.status === 'Completed';
                         return (
                           <div 
@@ -1679,7 +1738,7 @@ export default function App() {
             </div>
 
             {/* Quick Unsubscribe / Archive Cleaner Banner */}
-            {activeDetailEmail.category === 'Newsletters & Feeds' && (
+            {isPromoEmail(activeDetailEmail) && (
               <div style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', border: '1px solid #f59e0b', borderRadius: '12px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ textAlign: 'left' }}>
                   <h5 style={{ margin: 0, fontWeight: '800', color: '#78350f', fontSize: '13.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1771,6 +1830,13 @@ export default function App() {
                       <Icons.Folder />
                       <span className="badge badge-category">{activeDetailEmail.category}</span>
                     </div>
+                    {isPromoEmail(activeDetailEmail) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                        <span style={{ fontSize: '10.5px', background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: '4px', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          🏷️ Promotion/Newsletter Detected
+                        </span>
+                      </div>
+                    )}
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px dashed var(--border-color)', paddingTop: '6px' }}>
                       <label style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: '700' }}>Manual Re-Route:</label>
@@ -1908,6 +1974,21 @@ export default function App() {
             <div className="modal-header">
               <h3 className="modal-title">Simulate Incoming Inbox Traffic</h3>
               <button type="button" className="close-btn" onClick={() => setIsSimulating(false)}><Icons.X /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px', background: '#f1f5f9', padding: '12px', borderRadius: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>Quick Autofill Presets:</span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button type="button" className="btn-secondary" onClick={() => applyPreset('lead')} style={{ fontSize: '11.5px', padding: '6px 12px', background: '#ffffff', border: '1px solid #cbd5e1', cursor: 'pointer' }}>
+                  🔥 CRM Sales Lead
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => applyPreset('task')} style={{ fontSize: '11.5px', padding: '6px 12px', background: '#ffffff', border: '1px solid #cbd5e1', cursor: 'pointer' }}>
+                  📅 Action Task
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => applyPreset('promo')} style={{ fontSize: '11.5px', padding: '6px 12px', background: '#ffffff', border: '1px solid #cbd5e1', cursor: 'pointer' }}>
+                  🏷️ Newsletter/Promo
+                </button>
+              </div>
             </div>
 
             <div className="form-group">

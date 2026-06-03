@@ -434,6 +434,21 @@ const db = {
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) {
         console.error('Supabase getLeads error:', error);
+        if (error.code === 'P0001' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+          console.warn('\n⚠️  Supabase "leads" table is missing. Please run this SQL in your Supabase SQL Editor:\n' +
+            'CREATE TABLE leads (\n' +
+            '  id SERIAL PRIMARY KEY,\n' +
+            '  employee_email TEXT NOT NULL,\n' +
+            '  name TEXT,\n' +
+            '  email TEXT,\n' +
+            '  phone TEXT,\n' +
+            '  company TEXT,\n' +
+            '  service_requested TEXT,\n' +
+            '  lead_score INTEGER DEFAULT 0,\n' +
+            '  created_at TIMESTAMPTZ DEFAULT NOW()\n' +
+            ');\n'
+          );
+        }
         throw error;
       }
       return data || [];
@@ -499,6 +514,19 @@ const db = {
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) {
         console.error('Supabase getTasks error:', error);
+        if (error.code === 'P0001' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+          console.warn('\n⚠️  Supabase "tasks" table is missing. Please run this SQL in your Supabase SQL Editor:\n' +
+            'CREATE TABLE tasks (\n' +
+            '  id SERIAL PRIMARY KEY,\n' +
+            '  employee_email TEXT NOT NULL,\n' +
+            '  description TEXT NOT NULL,\n' +
+            '  due_date TEXT,\n' +
+            '  status TEXT DEFAULT \'Pending\',\n' +
+            '  source_email_id INTEGER,\n' +
+            '  created_at TIMESTAMPTZ DEFAULT NOW()\n' +
+            ');\n'
+          );
+        }
         throw error;
       }
       return data || [];

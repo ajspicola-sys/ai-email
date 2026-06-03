@@ -294,9 +294,19 @@ function simulateAnalysis(subject, body, folders = ['Support', 'Sales', 'Billing
   }
 
   // Fallbacks for standard scenarios if no direct keyword hits
-  if (category === 'General' || !folderNames.includes(category)) {
-    if ((plainText.includes('refund') || plainText.includes('charge') || plainText.includes('invoice')) && folderNames.includes('Billing')) {
+  if (category === 'General' || category === 'General Inbox' || !folderNames.includes(category)) {
+    if ((plainText.includes('refund') || plainText.includes('charge') || plainText.includes('invoice') || plainText.includes('bill') || plainText.includes('payment') || plainText.includes('finance')) && folderNames.includes('Finance & Bills')) {
+      category = 'Finance & Bills';
+    } else if ((plainText.includes('refund') || plainText.includes('charge') || plainText.includes('invoice')) && folderNames.includes('Billing')) {
       category = 'Billing';
+    } else if ((plainText.includes('unsubscribe') || plainText.includes('opt-out') || plainText.includes('opt out') || plainText.includes('newsletter') || plainText.includes('promotion')) && folderNames.includes('Newsletters & Feeds')) {
+      category = 'Newsletters & Feeds';
+    } else if ((plainText.includes('order') || plainText.includes('receipt') || plainText.includes('shipment') || plainText.includes('delivery') || plainText.includes('shopping')) && folderNames.includes('Shopping & Orders')) {
+      category = 'Shopping & Orders';
+    } else if ((plainText.includes('flight') || plainText.includes('hotel') || plainText.includes('itinerary') || plainText.includes('trip') || plainText.includes('travel')) && folderNames.includes('Travel & Plans')) {
+      category = 'Travel & Plans';
+    } else if ((plainText.includes('family') || plainText.includes('friend') || plainText.includes('dinner') || plainText.includes('casual') || plainText.includes('mom') || plainText.includes('dad')) && folderNames.includes('Personal & Family')) {
+      category = 'Personal & Family';
     } else if ((plainText.includes('broken') || plainText.includes('bug') || plainText.includes('error') || plainText.includes('not working')) && folderNames.includes('Support')) {
       category = 'Support';
     } else if ((plainText.includes('buy') || plainText.includes('demo') || plainText.includes('interested')) && folderNames.includes('Sales')) {
