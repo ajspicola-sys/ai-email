@@ -4,6 +4,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const apiKey = process.env.GEMINI_API_KEY;
+const openApiKey = process.env.OPENAI_API_KEY;
+
+if (openApiKey) {
+  console.log('OpenAI API support active (GPT-4o-mini).');
+}
 
 let genAI = null;
 if (apiKey && typeof apiKey === 'string' && (apiKey.startsWith('AIza') || apiKey.startsWith('AQ.'))) {
@@ -12,8 +17,8 @@ if (apiKey && typeof apiKey === 'string' && (apiKey.startsWith('AIza') || apiKey
 } else {
   if (apiKey) {
     console.warn("WARNING: GEMINI_API_KEY is not a valid Google AI Studio key (typically starts with 'AIza' or 'AQ.'). InboxSentry is running in premium SIMULATOR mode for seamless local testing.");
-  } else {
-    console.warn("WARNING: GEMINI_API_KEY is not defined in the environment. InboxSentry is running in premium SIMULATOR mode for seamless local testing.");
+  } else if (!openApiKey) {
+    console.warn("WARNING: Neither GEMINI_API_KEY nor OPENAI_API_KEY is defined in the environment. InboxSentry is running in premium SIMULATOR mode.");
   }
 }
 
@@ -25,6 +30,65 @@ if (apiKey && typeof apiKey === 'string' && (apiKey.startsWith('AIza') || apiKey
  * @returns {Promise<{category: string, urgency: string, sentiment: string, summary: string}>}
  */
 export async function analyzeEmail(subject, body, folders = ['Support', 'Sales', 'Billing', 'General']) {
+  const openApiKey = process.env.OPENAI_API_KEY;
+  if (openApiKey) {
+    try {
+      const categoryDescriptions = folders.map(f => {
+        const name = typeof f === 'string' ? f : f.category;
+        const instruction = typeof f === 'string' ? 'No custom guidelines provided.' : (f.prompt_instruction || 'No custom guidelines provided.');
+        return `- "${name}": Guidelines/Rules: ${instruction}`;
+      }).join('\n');
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openApiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert AI assistant that organizes business emails into folders. Respond ONLY with a JSON object.'
+            },
+            {
+              role: 'user',
+              content: `
+                Analyze the following email and choose exactly one folder category from the dynamic list below.
+                Choose the category whose description and guidelines match the email content best. If it doesn't clearly fit any specific folder, choose "General Inbox" or the fallback category.
+
+                Available Folder Categories and Guidelines:
+                ${categoryDescriptions}
+
+                Response JSON Schema:
+                {
+                  "category": "string", (Choose exactly one category name from the list above)
+                  "urgency": "string", (Choose exactly one from ["High", "Medium", "Low"])
+                  "sentiment": "string", (Choose exactly one from ["Positive", "Neutral", "Negative"])
+                  "summary": "string" (A very brief 1-sentence summary of what the sender wants)
+                }
+
+                Here is the email to analyze:
+                Subject: ${subject}
+                Body: ${body}
+              `
+            }
+          ]
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error?.message || response.statusText);
+      }
+      return JSON.parse(data.choices[0].message.content);
+    } catch (err) {
+      console.error('Error with OpenAI analyzeEmail API:', err.message);
+    }
+  }
+
   if (!genAI) {
     // Return high-quality simulated metadata if API key is not present
     return simulateAnalysis(subject, body, folders);
@@ -84,6 +148,51 @@ export async function analyzeEmail(subject, body, folders = ['Support', 'Sales',
  * @returns {Promise<string>}
  */
 export async function generateDraft(originalSender, originalSubject, originalBody, categoryInstruction, tone = 'Professional') {
+  const openApiKey = process.env.OPENAI_API_KEY;
+  if (openApiKey) {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openApiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `
+                You are an automated AI email responder for our company. 
+                Your task is to draft a polite, highly effective response to the customer's email.
+                
+                Here are the guidelines you MUST follow:
+                - Category-specific instructions: ${categoryInstruction}
+                - Tone to use: ${tone} (e.g. Professional, Friendly, or Direct)
+                - Keep it relatively concise, well-formatted with paragraph breaks, and free of placeholders like "[My Name]". Sign off as "The Customer Operations Team".
+                
+                Here is the email details to respond to:
+                Sender: ${originalSender}
+                Subject: ${originalSubject}
+                Body: ${originalBody}
+                
+                Write ONLY the response body. Do not include subject lines or header details.
+              `
+            }
+          ]
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error?.message || response.statusText);
+      }
+      return data.choices[0].message.content.trim();
+    } catch (err) {
+      console.error('Error with OpenAI generateDraft API:', err.message);
+    }
+  }
+
   if (!genAI) {
     return simulateDraft(originalSender, originalSubject, originalBody, tone);
   }
