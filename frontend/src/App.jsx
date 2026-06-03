@@ -1038,7 +1038,7 @@ export default function App() {
           </nav>
         </div>
         <div className="sidebar-profile-card">
-          <div className="user-avatar" style={{ background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff', width: '32px', height: '32px', fontSize: '12px' }}>
+          <div className="user-avatar" style={{ background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff', width: '50px', height: '50px', fontSize: '18px' }}>
             {currentUser.avatar ? (
               <img src={currentUser.avatar} alt="Avatar" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
             ) : (
@@ -1046,7 +1046,7 @@ export default function App() {
             )}
           </div>
           <div className="sidebar-profile-info" style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden', textAlign: 'left' }}>
-            <span style={{ color: '#ffffff', fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser.name}</span>
+            <span style={{ color: '#ffffff', fontWeight: '700', fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser.name}</span>
             <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentUser.email}</span>
           </div>
         </div>
