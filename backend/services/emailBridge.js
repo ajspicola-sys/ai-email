@@ -171,8 +171,13 @@ async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
     try {
       // Respect Gemini 5 RPM rate limit on the free tier (max 1 request every 12 seconds)
       if (i > 0) {
-        console.log(`Waiting 12 seconds to respect Gemini 5 RPM rate limit...`);
-        await delay(12000);
+        if (!process.env.OPENAI_API_KEY) {
+          console.log(`Waiting 12 seconds to respect Gemini 5 RPM rate limit...`);
+          await delay(12000);
+        } else {
+          // Tiny 1-second delay for OpenAI to prevent Microsoft folder creation race conditions
+          await delay(1000);
+        }
       }
 
       // 1. Analyze email category via Gemini
