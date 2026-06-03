@@ -818,7 +818,7 @@ export default function App() {
         )}
 
         <div className="content-body" style={{ overflowY: 'auto' }}>
-          <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', paddingBottom: '120px' }}>
             
             {/* Connection alert callout banner */}
             {currentUser.status !== 'Connected' && activeTab === 'overview' && (
@@ -921,7 +921,7 @@ export default function App() {
                 </div>
 
                 {/* Table Audit Logs Card */}
-                <div className="glass-card" style={{ padding: '24px', cursor: 'default' }}>
+                <div className="glass-card no-hover" style={{ padding: '24px', cursor: 'default' }}>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-primary)' }}>
                     My Triage Audit History ({filteredEmails.length} matching)
                   </h3>
@@ -985,7 +985,7 @@ export default function App() {
             {/* MY MAILBOX TAB */}
             {activeTab === 'mailbox' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                <div className="glass-card" style={{ padding: '32px', cursor: 'default' }}>
+                <div className="glass-card no-hover" style={{ padding: '32px', cursor: 'default' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '20px', marginBottom: '24px' }}>
                     <div>
                       <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: '800', color: 'var(--text-primary)' }}>
@@ -1066,7 +1066,7 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
                 {/* Folder creation form */}
-                <div className="glass-card" style={{ padding: '24px', cursor: 'default' }}>
+                <div className="glass-card no-hover" style={{ padding: '24px', cursor: 'default' }}>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '800', marginBottom: '16px', color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Icons.Sparkles /> Define Custom AI Sorting Folder
                   </h3>
@@ -1102,7 +1102,7 @@ export default function App() {
                 </div>
 
                 {/* Work Folder Presets Template Section */}
-                <div className="glass-card" style={{ padding: '20px 24px', cursor: 'default' }}>
+                <div className="glass-card no-hover" style={{ padding: '20px 24px', cursor: 'default' }}>
                   <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '15px', fontWeight: '800', marginBottom: '12px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Icons.Folder style={{ color: 'var(--accent-purple)' }} /> Need to use InboxSentry for Work? (Work Folder Presets)
                   </h3>
@@ -1214,7 +1214,7 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '32px', alignItems: 'start' }}>
                   
                   {/* Left Column: Form Info */}
-                  <div className="glass-card" style={{ padding: '32px', cursor: 'default' }}>
+                  <div className="glass-card no-hover" style={{ padding: '32px', cursor: 'default' }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '800', marginBottom: '24px', color: '#1d4ed8', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Icons.Settings /> Edit Profile Information
                     </h3>
@@ -1265,7 +1265,7 @@ export default function App() {
                   </div>
 
                   {/* Right Column: Avatar Picture */}
-                  <div className="glass-card" style={{ padding: '32px', cursor: 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '24px' }}>
+                  <div className="glass-card no-hover" style={{ padding: '32px', cursor: 'default', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '24px' }}>
                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', width: '100%', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
                       Profile Picture
                     </h3>
@@ -1923,7 +1923,7 @@ function RuleCard({ rule, isDefault, count, onSave, onDelete, onToggleReply }) {
   }, [rule.prompt_instruction]);
 
   return (
-    <div className="rule-panel">
+    <div className="rule-panel no-hover">
       <div className="rule-header">
         <span className="rule-category-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Icons.FolderFilled /> {rule.category}
