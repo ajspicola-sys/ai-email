@@ -156,6 +156,7 @@ export default function App() {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [emails, setEmails] = useState([]);
   const [selectedLogIds, setSelectedLogIds] = useState([]);
+  const [lastClickedId, setLastClickedId] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [rules, setRules] = useState([]);
   const [leads, setLeads] = useState([]);
@@ -950,13 +951,41 @@ export default function App() {
 
   const handleSelectRow = (id, e) => {
     e.stopPropagation();
-    setSelectedLogIds(prev => {
-      if (prev.includes(id)) {
-        return prev.filter(item => item !== id);
-      } else {
-        return [...prev, id];
+    
+    const isChecked = !selectedLogIds.includes(id);
+    let newSelection = [...selectedLogIds];
+    
+    if (e.nativeEvent.shiftKey && lastClickedId) {
+      const visibleIds = paginatedEmails.map(email => email.id);
+      const startIdx = visibleIds.indexOf(lastClickedId);
+      const endIdx = visibleIds.indexOf(id);
+      
+      if (startIdx !== -1 && endIdx !== -1) {
+        const [minIdx, maxIdx] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+        const rangeIds = visibleIds.slice(minIdx, maxIdx + 1);
+        
+        if (isChecked) {
+          rangeIds.forEach(rangeId => {
+            if (!newSelection.includes(rangeId)) {
+              newSelection.push(rangeId);
+            }
+          });
+        } else {
+          newSelection = newSelection.filter(selectedId => !rangeIds.includes(selectedId));
+        }
+        setSelectedLogIds(newSelection);
+        setLastClickedId(id);
+        return;
       }
-    });
+    }
+    
+    if (isChecked) {
+      newSelection.push(id);
+    } else {
+      newSelection = newSelection.filter(item => item !== id);
+    }
+    setSelectedLogIds(newSelection);
+    setLastClickedId(id);
   };
 
   const getEmailCountForCategory = (categoryName) => {
@@ -1258,9 +1287,9 @@ export default function App() {
                             <th style={{ width: '40px', paddingLeft: '8px' }}>
                               <input 
                                 type="checkbox" 
+                                className="custom-checkbox"
                                 checked={allVisibleSelected} 
                                 onChange={handleSelectAllToggle}
-                                style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
                               />
                             </th>
                             <th>Receiver (Employee)</th>
@@ -1296,9 +1325,9 @@ export default function App() {
                                 <td style={{ paddingLeft: '8px' }} onClick={(e) => e.stopPropagation()}>
                                   <input 
                                     type="checkbox" 
+                                    className="custom-checkbox"
                                     checked={selectedLogIds.includes(email.id)} 
                                     onChange={(e) => handleSelectRow(email.id, e)}
-                                    style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
                                   />
                                 </td>
                                 <td style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{email.employee_email}</td>

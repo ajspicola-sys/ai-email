@@ -1247,3 +1247,42 @@ h1 svg, h2 svg, h3 svg, h4 svg {
   background-color: #38bdf8 !important;
 }
 
+/* Circular Checkbox styling */
+input[type="checkbox"].custom-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #cbd5e1;
+  border-radius: 50%;
+  outline: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  background-color: #ffffff;
+}
+
+input[type="checkbox"].custom-checkbox:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+input[type="checkbox"].custom-checkbox:checked {
+  background: linear-gradient(135deg, #3b82f6 0%, #38bdf8 100%);
+  border-color: transparent;
+}
+
+input[type="checkbox"].custom-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  width: 4.5px;
+  height: 9px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-top: -2.5px;
+}
+
