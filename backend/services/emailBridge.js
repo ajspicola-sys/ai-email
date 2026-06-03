@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+let isPollingActive = false;
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Start the multi-tenant background poller loop
 startEnterpriseInboxPoller();
 
@@ -74,6 +77,11 @@ async function getValidAccessToken(employee, creds) {
  * Helper that performs a single check across all active connected employee mailboxes.
  */
 async function runPollCycle() {
+  if (isPollingActive) {
+    console.log('Previous polling cycle is still active. Skipping run to prevent rate-limit overlap.');
+    return;
+  }
+  isPollingActive = true;
   try {
     const creds = await getAzureSettings();
     if (!creds.clientId || !creds.clientSecret) {
@@ -105,6 +113,8 @@ async function runPollCycle() {
     }
   } catch (e) {
     console.error('Enterprise Poller Cycle Error:', e.message);
+  } finally {
+    isPollingActive = false;
   }
 }
 
@@ -151,13 +161,20 @@ async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
 
   console.log(`Microsoft Graph: Found ${messages.length} unread email(s) for ${employeeEmail}`);
 
-  for (const message of messages) {
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
     const subject = message.subject || 'No Subject';
     const body = message.body?.content || message.bodyPreview || '';
     const senderEmail = message.from?.emailAddress?.address || 'unknown@sender.com';
     const senderName = message.from?.emailAddress?.name || senderEmail.split('@')[0];
 
     try {
+      // Respect Gemini 5 RPM rate limit on the free tier (max 1 request every 12 seconds)
+      if (i > 0) {
+        console.log(`Waiting 12 seconds to respect Gemini 5 RPM rate limit...`);
+        await delay(12000);
+      }
+
       // 1. Analyze email category via Gemini
       const analysis = await analyzeEmail(subject, body, activeRules);
 
