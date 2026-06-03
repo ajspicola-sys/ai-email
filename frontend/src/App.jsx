@@ -1327,11 +1327,12 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-
                 </div>
               </div>
             )}
 
+            {/* Scroll Spacer to guarantee room to scroll past content */}
+            <div className="scroll-spacer" style={{ height: '80px', flexShrink: 0 }} />
           </div>
         </div>
       </main>
