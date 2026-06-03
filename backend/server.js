@@ -251,8 +251,31 @@ app.get('/api/emails', async (req, res) => {
 
 // Delete a specific email log
 app.delete('/api/emails/:id', async (req, res) => {
+  const { id } = req.params;
   try {
-    await db.deleteEmail(req.params.id);
+    const emailRecord = await db.getEmailById(id);
+    if (emailRecord && emailRecord.message_id && !emailRecord.message_id.startsWith('msg-')) {
+      const accessToken = await getValidAccessTokenForServer(emailRecord.employee_email);
+      if (accessToken) {
+        const moveUrl = `https://graph.microsoft.com/v1.0/users/${emailRecord.employee_email}/messages/${emailRecord.message_id}/move`;
+        const moveRes = await fetch(moveUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ destinationId: 'deleteditems' })
+        });
+        if (moveRes.ok) {
+          console.log(`Delete Sync: Successfully moved message ${emailRecord.message_id} to Deleted Items in Outlook`);
+        } else {
+          const errData = await moveRes.json().catch(() => ({}));
+          console.warn(`Delete Sync: Outlook move failed:`, errData.error?.message);
+        }
+      }
+    }
+
+    await db.deleteEmail(id);
     res.json({ message: 'Email log deleted successfully' });
   } catch (error) {
     console.error('Error deleting email log:', error);
@@ -274,12 +297,42 @@ app.delete('/api/emails', async (req, res) => {
 
 // Delete multiple email logs in batch
 app.post('/api/emails/delete-batch', async (req, res) => {
-  const { ids } = req.body;
+  const { ids, employee_email } = req.body;
   if (!Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'Missing list of email log IDs to delete' });
   }
 
   try {
+    if (employee_email) {
+      const accessToken = await getValidAccessTokenForServer(employee_email);
+      if (accessToken) {
+        for (const id of ids) {
+          try {
+            const emailRecord = await db.getEmailById(id);
+            if (emailRecord && emailRecord.message_id && !emailRecord.message_id.startsWith('msg-')) {
+              const moveUrl = `https://graph.microsoft.com/v1.0/users/${employee_email}/messages/${emailRecord.message_id}/move`;
+              const moveRes = await fetch(moveUrl, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ destinationId: 'deleteditems' })
+              });
+              if (moveRes.ok) {
+                console.log(`Batch Delete Sync: Successfully moved message ${emailRecord.message_id} to Deleted Items`);
+              } else {
+                const errData = await moveRes.json().catch(() => ({}));
+                console.warn(`Batch Delete Sync: Failed to move message ${emailRecord.message_id}:`, errData.error?.message);
+              }
+            }
+          } catch (e) {
+            console.error(`Batch Delete Sync: Error moving log ID ${id}:`, e.message);
+          }
+        }
+      }
+    }
+
     await db.deleteEmailsBatch(ids);
     res.json({ message: `${ids.length} email logs deleted successfully` });
   } catch (error) {
@@ -674,9 +727,15 @@ app.put('/api/emails/:id/reroute', async (req, res) => {
           });
 
           if (moveRes.ok) {
-            console.log(`Re-route Sync: Successfully moved Outlook email ID ${emailRecord.message_id} to folder "${category}"`);
+            const movedData = await moveRes.json().catch(() => ({}));
+            if (movedData && movedData.id) {
+              await db.updateEmailMessageId(id, movedData.id);
+              console.log(`Re-route Sync: Successfully moved Outlook email ID ${emailRecord.message_id} to folder "${category}". Stored new Message ID.`);
+            } else {
+              console.log(`Re-route Sync: Successfully moved Outlook email ID ${emailRecord.message_id} to folder "${category}"`);
+            }
           } else {
-            const errData = await moveRes.json();
+            const errData = await moveRes.json().catch(() => ({}));
             console.error(`Re-route Sync: Outlook move failed:`, errData.error?.message);
           }
         }

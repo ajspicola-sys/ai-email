@@ -506,7 +506,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/emails/delete-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: selectedLogIds })
+        body: JSON.stringify({ ids: selectedLogIds, employee_email: currentUser?.email })
       });
 
       if (res.ok) {

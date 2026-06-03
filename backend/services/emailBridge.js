@@ -226,6 +226,8 @@ async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
 
       console.log(`AI classified email from ${senderName} into category folder: "${analysis.category}"`);
 
+      let finalMessageId = message.id;
+
       // 3. Find or Create the Outlook folder matching that category name
       const folderId = await getOrCreateOutlookFolder(employeeEmail, analysis.category, accessToken);
 
@@ -242,15 +244,22 @@ async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
         });
 
         if (moveRes.ok) {
-          console.log(`Successfully moved email to live Outlook folder: "${analysis.category}"`);
+          const movedData = await moveRes.json().catch(() => ({}));
+          if (movedData && movedData.id) {
+            finalMessageId = movedData.id;
+            await db.updateEmailMessageId(savedEmail.id, finalMessageId);
+            console.log(`Successfully moved email to live Outlook folder: "${analysis.category}". Stored new Message ID: ${finalMessageId}`);
+          } else {
+            console.log(`Successfully moved email to live Outlook folder: "${analysis.category}"`);
+          }
         } else {
-          const errData = await moveRes.json();
+          const errData = await moveRes.json().catch(() => ({}));
           console.error(`Graph API Move Message failed:`, errData.error?.message);
         }
       }
 
       // 5. Mark email as READ in the destination so we don't process it again
-      const patchUrl = `https://graph.microsoft.com/v1.0/users/${employeeEmail}/messages/${message.id}`;
+      const patchUrl = `https://graph.microsoft.com/v1.0/users/${employeeEmail}/messages/${finalMessageId}`;
       await fetch(patchUrl, {
         method: 'PATCH',
         headers: {

@@ -332,6 +332,25 @@ const db = {
     }
   },
 
+  async updateEmailMessageId(id, messageId) {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase
+        .from('emails')
+        .update({ message_id: messageId })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) {
+        console.error('Supabase updateEmailMessageId error:', error);
+        throw error;
+      }
+      return data;
+    } else {
+      await dbRun('UPDATE emails SET message_id = ? WHERE id = ?', [messageId, id]);
+      return await dbGet('SELECT * FROM emails WHERE id = ?', [id]);
+    }
+  },
+
   async getEmailById(id) {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase
