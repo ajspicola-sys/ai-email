@@ -1,5 +1,72 @@
-import { dbRun, dbGet, dbAll } from '../database.js';
+import { dbRun, dbGet, dbAll, dbInitialized } from '../database.js';
 import { supabase, isSupabaseConfigured } from './supabaseClient.js';
+
+function isMissingTableError(error) {
+  if (!error) return false;
+  return (
+    error.code === 'PGRST205' ||
+    error.code === 'P0001' ||
+    error.message?.includes('relation') ||
+    error.message?.includes('does not exist') ||
+    error.message?.includes('schema cache')
+  );
+}
+
+function warnMissingTable(tableName, sqlSnippet = '') {
+  console.warn(`\n⚠️  Supabase "${tableName}" table is missing in your cloud database.`);
+  console.warn(`👉 Running on local SQLite fallback. Please execute the SQL schema script in your Supabase SQL Editor:`);
+  if (sqlSnippet) {
+    console.warn(`-- SQL to create "${tableName}":\n${sqlSnippet}\n`);
+  } else {
+    console.warn(`-- Check the schema file at: supabase_schema.sql\n`);
+  }
+}
+
+async function getLocalLeads(employeeEmail) {
+  if (employeeEmail) {
+    return await dbAll('SELECT * FROM leads WHERE employee_email = ? ORDER BY created_at DESC', [employeeEmail.toLowerCase().trim()]);
+  } else {
+    return await dbAll('SELECT * FROM leads ORDER BY created_at DESC');
+  }
+}
+
+async function saveLocalLead(employeeEmail, name, email, phone, company, serviceRequested, leadScore) {
+  const result = await dbRun(`
+    INSERT INTO leads (employee_email, name, email, phone, company, service_requested, lead_score)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [employeeEmail, name, email, phone, company, serviceRequested, leadScore]);
+  return await dbGet('SELECT * FROM leads WHERE id = ?', [result.id]);
+}
+
+async function deleteLocalLead(id) {
+  await dbRun('DELETE FROM leads WHERE id = ?', [id]);
+}
+
+async function getLocalTasks(employeeEmail) {
+  if (employeeEmail) {
+    return await dbAll('SELECT * FROM tasks WHERE employee_email = ? ORDER BY created_at DESC', [employeeEmail.toLowerCase().trim()]);
+  } else {
+    return await dbAll('SELECT * FROM tasks ORDER BY created_at DESC');
+  }
+}
+
+async function saveLocalTask(employeeEmail, description, dueDate, sourceEmailId) {
+  const result = await dbRun(`
+    INSERT INTO tasks (employee_email, description, due_date, status, source_email_id)
+    VALUES (?, ?, ?, 'Pending', ?)
+  `, [employeeEmail, description, dueDate, sourceEmailId]);
+  return await dbGet('SELECT * FROM tasks WHERE id = ?', [result.id]);
+}
+
+async function toggleLocalTaskStatus(id, currentStatus) {
+  const nextStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
+  await dbRun('UPDATE tasks SET status = ? WHERE id = ?', [nextStatus, id]);
+  return await dbGet('SELECT * FROM tasks WHERE id = ?', [id]);
+}
+
+async function deleteLocalTask(id) {
+  await dbRun('DELETE FROM tasks WHERE id = ?', [id]);
+}
 
 const db = {
   // 1. Employees (Workspace Accounts)
@@ -282,6 +349,43 @@ const db = {
     }
   },
 
+  async deleteEmail(id) {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase
+        .from('emails')
+        .delete()
+        .eq('id', id);
+      if (error) {
+        console.error('Supabase deleteEmail error:', error);
+        throw error;
+      }
+    } else {
+      await dbRun('DELETE FROM emails WHERE id = ?', [id]);
+    }
+  },
+
+  async clearAllEmails(employeeEmail) {
+    if (isSupabaseConfigured) {
+      let query = supabase.from('emails').delete();
+      if (employeeEmail) {
+        query = query.eq('employee_email', employeeEmail.toLowerCase().trim());
+      } else {
+        query = query.gt('id', 0);
+      }
+      const { error } = await query;
+      if (error) {
+        console.error('Supabase clearAllEmails error:', error);
+        throw error;
+      }
+    } else {
+      if (employeeEmail) {
+        await dbRun('DELETE FROM emails WHERE employee_email = ?', [employeeEmail.toLowerCase().trim()]);
+      } else {
+        await dbRun('DELETE FROM emails');
+      }
+    }
+  },
+
   // 3. Rules (Folders)
   async getRules() {
     if (isSupabaseConfigured) {
@@ -433,9 +537,8 @@ const db = {
       }
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) {
-        console.error('Supabase getLeads error:', error);
-        if (error.code === 'P0001' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
-          console.warn('\n⚠️  Supabase "leads" table is missing. Please run this SQL in your Supabase SQL Editor:\n' +
+        if (isMissingTableError(error)) {
+          warnMissingTable('leads',
             'CREATE TABLE leads (\n' +
             '  id SERIAL PRIMARY KEY,\n' +
             '  employee_email TEXT NOT NULL,\n' +
@@ -446,18 +549,16 @@ const db = {
             '  service_requested TEXT,\n' +
             '  lead_score INTEGER DEFAULT 0,\n' +
             '  created_at TIMESTAMPTZ DEFAULT NOW()\n' +
-            ');\n'
+            ');'
           );
+          return await getLocalLeads(employeeEmail);
         }
+        console.error('Supabase getLeads error:', error);
         throw error;
       }
       return data || [];
     } else {
-      if (employeeEmail) {
-        return await dbAll('SELECT * FROM leads WHERE employee_email = ? ORDER BY created_at DESC', [employeeEmail.toLowerCase().trim()]);
-      } else {
-        return await dbAll('SELECT * FROM leads ORDER BY created_at DESC');
-      }
+      return await getLocalLeads(employeeEmail);
     }
   },
 
@@ -477,16 +578,28 @@ const db = {
         .select()
         .single();
       if (error) {
+        if (isMissingTableError(error)) {
+          warnMissingTable('leads',
+            'CREATE TABLE leads (\n' +
+            '  id SERIAL PRIMARY KEY,\n' +
+            '  employee_email TEXT NOT NULL,\n' +
+            '  name TEXT,\n' +
+            '  email TEXT,\n' +
+            '  phone TEXT,\n' +
+            '  company TEXT,\n' +
+            '  service_requested TEXT,\n' +
+            '  lead_score INTEGER DEFAULT 0,\n' +
+            '  created_at TIMESTAMPTZ DEFAULT NOW()\n' +
+            ');'
+          );
+          return await saveLocalLead(employeeEmail, name, email, phone, company, serviceRequested, leadScore);
+        }
         console.error('Supabase saveLead error:', error);
         throw error;
       }
       return data;
     } else {
-      const result = await dbRun(`
-        INSERT INTO leads (employee_email, name, email, phone, company, service_requested, lead_score)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [employeeEmail, name, email, phone, company, serviceRequested, leadScore]);
-      return await dbGet('SELECT * FROM leads WHERE id = ?', [result.id]);
+      return await saveLocalLead(employeeEmail, name, email, phone, company, serviceRequested, leadScore);
     }
   },
 
@@ -497,11 +610,15 @@ const db = {
         .delete()
         .eq('id', id);
       if (error) {
+        if (isMissingTableError(error)) {
+          warnMissingTable('leads');
+          return await deleteLocalLead(id);
+        }
         console.error('Supabase deleteLead error:', error);
         throw error;
       }
     } else {
-      await dbRun('DELETE FROM leads WHERE id = ?', [id]);
+      await deleteLocalLead(id);
     }
   },
 
@@ -513,9 +630,8 @@ const db = {
       }
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) {
-        console.error('Supabase getTasks error:', error);
-        if (error.code === 'P0001' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
-          console.warn('\n⚠️  Supabase "tasks" table is missing. Please run this SQL in your Supabase SQL Editor:\n' +
+        if (isMissingTableError(error)) {
+          warnMissingTable('tasks',
             'CREATE TABLE tasks (\n' +
             '  id SERIAL PRIMARY KEY,\n' +
             '  employee_email TEXT NOT NULL,\n' +
@@ -524,18 +640,16 @@ const db = {
             '  status TEXT DEFAULT \'Pending\',\n' +
             '  source_email_id INTEGER,\n' +
             '  created_at TIMESTAMPTZ DEFAULT NOW()\n' +
-            ');\n'
+            ');'
           );
+          return await getLocalTasks(employeeEmail);
         }
+        console.error('Supabase getTasks error:', error);
         throw error;
       }
       return data || [];
     } else {
-      if (employeeEmail) {
-        return await dbAll('SELECT * FROM tasks WHERE employee_email = ? ORDER BY created_at DESC', [employeeEmail.toLowerCase().trim()]);
-      } else {
-        return await dbAll('SELECT * FROM tasks ORDER BY created_at DESC');
-      }
+      return await getLocalTasks(employeeEmail);
     }
   },
 
@@ -553,22 +667,32 @@ const db = {
         .select()
         .single();
       if (error) {
+        if (isMissingTableError(error)) {
+          warnMissingTable('tasks',
+            'CREATE TABLE tasks (\n' +
+            '  id SERIAL PRIMARY KEY,\n' +
+            '  employee_email TEXT NOT NULL,\n' +
+            '  description TEXT NOT NULL,\n' +
+            '  due_date TEXT,\n' +
+            '  status TEXT DEFAULT \'Pending\',\n' +
+            '  source_email_id INTEGER,\n' +
+            '  created_at TIMESTAMPTZ DEFAULT NOW()\n' +
+            ');'
+          );
+          return await saveLocalTask(employeeEmail, description, dueDate, sourceEmailId);
+        }
         console.error('Supabase saveTask error:', error);
         throw error;
       }
       return data;
     } else {
-      const result = await dbRun(`
-        INSERT INTO tasks (employee_email, description, due_date, status, source_email_id)
-        VALUES (?, ?, ?, 'Pending', ?)
-      `, [employeeEmail, description, dueDate, sourceEmailId]);
-      return await dbGet('SELECT * FROM tasks WHERE id = ?', [result.id]);
+      return await saveLocalTask(employeeEmail, description, dueDate, sourceEmailId);
     }
   },
 
   async toggleTaskStatus(id, currentStatus) {
-    const nextStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
     if (isSupabaseConfigured) {
+      const nextStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
       const { data, error } = await supabase
         .from('tasks')
         .update({ status: nextStatus })
@@ -576,13 +700,16 @@ const db = {
         .select()
         .single();
       if (error) {
+        if (isMissingTableError(error)) {
+          warnMissingTable('tasks');
+          return await toggleLocalTaskStatus(id, currentStatus);
+        }
         console.error('Supabase toggleTaskStatus error:', error);
         throw error;
       }
       return data;
     } else {
-      await dbRun('UPDATE tasks SET status = ? WHERE id = ?', [nextStatus, id]);
-      return await dbGet('SELECT * FROM tasks WHERE id = ?', [id]);
+      return await toggleLocalTaskStatus(id, currentStatus);
     }
   },
 
@@ -593,13 +720,213 @@ const db = {
         .delete()
         .eq('id', id);
       if (error) {
+        if (isMissingTableError(error)) {
+          warnMissingTable('tasks');
+          return await deleteLocalTask(id);
+        }
         console.error('Supabase deleteTask error:', error);
         throw error;
       }
     } else {
-      await dbRun('DELETE FROM tasks WHERE id = ?', [id]);
+      await deleteLocalTask(id);
     }
   }
 };
+
+async function migrateLocalToSupabase() {
+  if (!isSupabaseConfigured) return;
+
+  console.log('🔄 Checking for local data to migrate to Supabase cloud...');
+
+  try {
+    // 1. Migrate Employees
+    const localEmployees = await dbAll('SELECT * FROM employees');
+    if (localEmployees.length > 0) {
+      for (const emp of localEmployees) {
+        const { data, error } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('email', emp.email)
+          .maybeSingle();
+
+        if (error && !isMissingTableError(error)) {
+          console.error('Migration error checking employee:', error);
+          continue;
+        }
+
+        if (!data) {
+          console.log(`Migrating employee to Supabase: ${emp.email}`);
+          const { error: insertError } = await supabase
+            .from('employees')
+            .insert([{
+              email: emp.email,
+              name: emp.name,
+              password: emp.password,
+              access_token: emp.access_token,
+              refresh_token: emp.refresh_token,
+              token_expires_at: emp.token_expires_at,
+              status: emp.status,
+              avatar: emp.avatar
+            }]);
+          if (insertError) console.error(`Failed to migrate employee ${emp.email}:`, insertError);
+        }
+      }
+    }
+
+    // 2. Migrate Rules
+    const localRules = await dbAll('SELECT * FROM rules');
+    if (localRules.length > 0) {
+      for (const rule of localRules) {
+        const { data, error } = await supabase
+          .from('rules')
+          .select('category')
+          .eq('category', rule.category)
+          .maybeSingle();
+
+        if (error && !isMissingTableError(error)) continue;
+
+        if (!data) {
+          console.log(`Migrating rule to Supabase: ${rule.category}`);
+          const { error: insertError } = await supabase
+            .from('rules')
+            .insert([{
+              category: rule.category,
+              prompt_instruction: rule.prompt_instruction,
+              auto_reply: rule.auto_reply
+            }]);
+          if (insertError) console.error(`Failed to migrate rule ${rule.category}:`, insertError);
+        }
+      }
+    }
+
+    // 3. Migrate Settings
+    const localSettings = await dbAll('SELECT * FROM settings');
+    if (localSettings.length > 0) {
+      for (const setting of localSettings) {
+        const { data, error } = await supabase
+          .from('settings')
+          .select('key')
+          .eq('key', setting.key)
+          .maybeSingle();
+
+        if (error && !isMissingTableError(error)) continue;
+
+        if (!data) {
+          console.log(`Migrating setting to Supabase: ${setting.key}`);
+          const { error: insertError } = await supabase
+            .from('settings')
+            .insert([{
+              key: setting.key,
+              value: setting.value
+            }]);
+          if (insertError) console.error(`Failed to migrate setting ${setting.key}:`, insertError);
+        }
+      }
+    }
+
+    // 4. Migrate Emails
+    const localEmails = await dbAll('SELECT * FROM emails');
+    if (localEmails.length > 0) {
+      for (const email of localEmails) {
+        let query = supabase.from('emails').select('id');
+        if (email.message_id) {
+          query = query.eq('message_id', email.message_id);
+        } else {
+          query = query.eq('subject', email.subject).eq('received_at', email.received_at);
+        }
+        const { data, error } = await query.maybeSingle();
+
+        if (error && !isMissingTableError(error)) continue;
+
+        if (!data) {
+          console.log(`Migrating email log to Supabase: ${email.subject}`);
+          const { error: insertError } = await supabase
+            .from('emails')
+            .insert([{
+              employee_email: email.employee_email,
+              sender_email: email.sender_email,
+              sender_name: email.sender_name,
+              subject: email.subject,
+              body: email.body,
+              category: email.category,
+              urgency: email.urgency,
+              sentiment: email.sentiment,
+              summary: email.summary,
+              message_id: email.message_id
+            }]);
+          if (insertError) console.error(`Failed to migrate email ${email.subject}:`, insertError);
+        }
+      }
+    }
+
+    // 5. Migrate Leads
+    const localLeads = await dbAll('SELECT * FROM leads');
+    if (localLeads.length > 0) {
+      for (const lead of localLeads) {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('employee_email', lead.employee_email)
+          .eq('email', lead.email)
+          .maybeSingle();
+
+        if (error && !isMissingTableError(error)) continue;
+
+        if (!data) {
+          console.log(`Migrating lead to Supabase: ${lead.email}`);
+          const { error: insertError } = await supabase
+            .from('leads')
+            .insert([{
+              employee_email: lead.employee_email,
+              name: lead.name,
+              email: lead.email,
+              phone: lead.phone,
+              company: lead.company,
+              service_requested: lead.service_requested,
+              lead_score: lead.lead_score
+            }]);
+          if (insertError) console.error(`Failed to migrate lead ${lead.email}:`, insertError);
+        }
+      }
+    }
+
+    // 6. Migrate Tasks
+    const localTasks = await dbAll('SELECT * FROM tasks');
+    if (localTasks.length > 0) {
+      for (const task of localTasks) {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('id')
+          .eq('employee_email', task.employee_email)
+          .eq('description', task.description)
+          .maybeSingle();
+
+        if (error && !isMissingTableError(error)) continue;
+
+        if (!data) {
+          console.log(`Migrating task to Supabase: ${task.description}`);
+          const { error: insertError } = await supabase
+            .from('tasks')
+            .insert([{
+              employee_email: task.employee_email,
+              description: task.description,
+              due_date: task.due_date,
+              status: task.status,
+              source_email_id: task.source_email_id
+            }]);
+          if (insertError) console.error(`Failed to migrate task ${task.description}:`, insertError);
+        }
+      }
+    }
+
+    console.log('✅ Local data check & migration to Supabase completed.');
+  } catch (err) {
+    console.error('❌ Data migration to Supabase failed:', err);
+  }
+}
+
+dbInitialized.then(() => {
+  migrateLocalToSupabase();
+});
 
 export default db;

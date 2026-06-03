@@ -21,6 +21,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
 });
 
+export let dbResolve;
+export const dbInitialized = new Promise((resolve) => {
+  dbResolve = resolve;
+});
+
 // Helper function to run DB operations as promises
 export const dbRun = (query, params = []) => {
   return new Promise((resolve, reject) => {
@@ -204,6 +209,7 @@ function initializeDatabase() {
     }
 
     console.log('Database tables and default settings initialized successfully.');
+    if (dbResolve) dbResolve();
   });
 }
 

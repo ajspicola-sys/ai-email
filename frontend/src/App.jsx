@@ -118,6 +118,14 @@ const Icons = {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon-svg">
       <path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 1.5 1.5M15.5 7.5 14 6" />
     </svg>
+  ),
+  Trash: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="icon-svg">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
   )
 };
 
@@ -414,6 +422,51 @@ export default function App() {
     } catch (e) {
       console.error('Failed to fetch team list:', e);
       setEmployees([]);
+    }
+  };
+
+  const handleDeleteLog = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this triage log entry? This will permanently remove it from the audit logs.')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/emails/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setEmails(prev => prev.filter(email => email.id !== id));
+        showToast('Triage log entry deleted successfully.', 'success');
+        if (activeDetailEmail && activeDetailEmail.id === id) {
+          setActiveDetailEmail(null);
+        }
+      } else {
+        await handleFetchError(res, 'Failed to delete log entry.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Network error deleting log entry.', 'error', 'CONN_ERR');
+    }
+  };
+
+  const handleClearAllLogs = async () => {
+    const targetEmail = currentUser ? currentUser.email : '';
+    if (!targetEmail) return;
+    if (!confirm(`Are you sure you want to permanently clear all triage logs for ${targetEmail}? This action cannot be undone.`)) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/emails?employee_email=${encodeURIComponent(targetEmail)}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setEmails([]);
+        showToast('All triage logs cleared successfully.', 'success');
+        setActiveDetailEmail(null);
+      } else {
+        await handleFetchError(res, 'Failed to clear triage logs.');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Network error clearing triage logs.', 'error', 'CONN_ERR');
     }
   };
 
@@ -1077,9 +1130,30 @@ export default function App() {
 
                 {/* Table Audit Logs Card */}
                 <div className="glass-card no-hover" style={{ padding: '24px', cursor: 'default' }}>
-                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '700', marginBottom: '16px', color: 'var(--text-primary)' }}>
-                    My Triage Audit History ({filteredEmails.length} matching)
-                  </h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+                      My Triage Audit History ({filteredEmails.length} matching)
+                    </h3>
+                    {emails.length > 0 && (
+                      <button
+                        onClick={handleClearAllLogs}
+                        className="btn-secondary"
+                        style={{
+                          color: '#f43f5e',
+                          borderColor: 'rgba(244, 63, 94, 0.2)',
+                          background: '#fffefd',
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Icons.Trash style={{ width: '13px', height: '13px' }} /> Clear All Logs
+                      </button>
+                    )}
+                  </div>
                   
                   {initialFetchLoading ? (
                     <div style={{ padding: '20px 0' }}>
@@ -1100,17 +1174,18 @@ export default function App() {
                             <th>Urgency</th>
                             <th>Summary</th>
                             <th>Time</th>
+                            <th style={{ width: '60px', textAlign: 'center' }}></th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredEmails.length === 0 ? (
                             <tr>
-                              <td colSpan="7" style={{ textAlign: 'center', height: '120px', color: 'var(--text-muted)', fontSize: '13.5px' }}>
+                              <td colSpan="8" style={{ textAlign: 'center', height: '120px', color: 'var(--text-muted)', fontSize: '13.5px' }}>
                                 No sorted emails found. Try simulating traffic for {currentUser.email} using the Simulate button at the top!
                               </td>
                             </tr>
                           ) : (
-                            paginatedEmails.map(email => (
+                             paginatedEmails.map(email => (
                               <tr 
                                 key={email.id} 
                                 onClick={() => handleOpenDetailEmail(email)}
@@ -1133,6 +1208,28 @@ export default function App() {
                                 <td><span className={`badge badge-urgency-${email.urgency.toLowerCase()}`}>{email.urgency}</span></td>
                                 <td style={{ color: 'var(--text-secondary)', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email.summary}</td>
                                 <td style={{ color: 'var(--text-secondary)' }}>{new Date(email.received_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    onClick={(e) => handleDeleteLog(email.id, e)}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      color: '#f43f5e',
+                                      cursor: 'pointer',
+                                      padding: '6px',
+                                      borderRadius: '6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      transition: 'all 0.2s'
+                                    }}
+                                    title="Delete this triage log entry"
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(244, 63, 94, 0.08)'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                  >
+                                    <Icons.Trash style={{ width: '14px', height: '14px' }} />
+                                  </button>
+                                </td>
                               </tr>
                             ))
                           )}
@@ -1936,6 +2033,21 @@ export default function App() {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button
+                  onClick={(e) => handleDeleteLog(activeDetailEmail.id, e)}
+                  className="btn-secondary"
+                  style={{
+                    color: '#f43f5e',
+                    borderColor: 'rgba(244, 63, 94, 0.2)',
+                    background: '#fffefd',
+                    marginRight: 'auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Icons.Trash style={{ width: '13px', height: '13px' }} /> Delete Log
+                </button>
                 <button className="btn-secondary" onClick={() => setActiveDetailEmail(null)}>Close Audit Logs</button>
                 <button 
                   className="simulator-btn" 

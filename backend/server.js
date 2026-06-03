@@ -249,6 +249,29 @@ app.get('/api/emails', async (req, res) => {
   }
 });
 
+// Delete a specific email log
+app.delete('/api/emails/:id', async (req, res) => {
+  try {
+    await db.deleteEmail(req.params.id);
+    res.json({ message: 'Email log deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting email log:', error);
+    res.status(500).json({ error: 'Failed to delete email log', details: error.message });
+  }
+});
+
+// Clear all email logs
+app.delete('/api/emails', async (req, res) => {
+  const { employee_email } = req.query;
+  try {
+    await db.clearAllEmails(employee_email);
+    res.json({ message: 'All email logs cleared successfully' });
+  } catch (error) {
+    console.error('Error clearing email logs:', error);
+    res.status(500).json({ error: 'Failed to clear email logs', details: error.message });
+  }
+});
+
 // Simulate receiving/sorting an email for testing
 app.post('/api/emails/simulate', async (req, res) => {
   const { sender_email, sender_name, subject, body, employee_email } = req.body;
