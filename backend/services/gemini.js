@@ -6,14 +6,14 @@ dotenv.config();
 const apiKey = process.env.GEMINI_API_KEY;
 
 let genAI = null;
-if (apiKey && apiKey.startsWith('AIzaSy')) {
+if (apiKey && typeof apiKey === 'string' && (apiKey.startsWith('AIza') || apiKey.startsWith('AQ.'))) {
   genAI = new GoogleGenerativeAI(apiKey);
   console.log('Gemini API initialized successfully.');
 } else {
   if (apiKey) {
-    console.warn("WARNING: GEMINI_API_KEY is not a valid Google AI Studio key (typically starts with 'AIzaSy'). InboxSentry is running in premium SIMULATOR mode for seamless local testing.");
+    console.warn("WARNING: GEMINI_API_KEY is not a valid Google AI Studio key (typically starts with 'AIza' or 'AQ.'). InboxSentry is running in premium SIMULATOR mode for seamless local testing.");
   } else {
-    console.warn("WARNING: GEMINI_API_KEY is not defined in the .env file. InboxSentry is running in premium SIMULATOR mode for seamless local testing.");
+    console.warn("WARNING: GEMINI_API_KEY is not defined in the environment. InboxSentry is running in premium SIMULATOR mode for seamless local testing.");
   }
 }
 
