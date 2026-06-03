@@ -174,6 +174,11 @@ export default function App() {
   // Filtering states for Logs
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory]);
 
   // Detail Modal Drawer State
   const [activeDetailEmail, setActiveDetailEmail] = useState(null);
@@ -704,6 +709,14 @@ export default function App() {
     return matchesSearch && matchesCategory;
   });
 
+  // Pagination Logic
+  const pageSize = 25;
+  const totalPages = Math.ceil(filteredEmails.length / pageSize);
+  const paginatedEmails = filteredEmails.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   const getEmailCountForCategory = (categoryName) => {
     return emails.filter(e => e.category === categoryName).length;
   };
@@ -955,7 +968,7 @@ export default function App() {
                               </td>
                             </tr>
                           ) : (
-                            filteredEmails.map(email => (
+                            paginatedEmails.map(email => (
                               <tr 
                                 key={email.id} 
                                 onClick={() => handleOpenDetailEmail(email)}
@@ -974,6 +987,52 @@ export default function App() {
                           )}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+
+                  {/* Pagination Controls */}
+                  {!initialFetchLoading && filteredEmails.length > pageSize && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+                      <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                        Showing <strong>{((currentPage - 1) * pageSize) + 1}</strong> to <strong>{Math.min(currentPage * pageSize, filteredEmails.length)}</strong> of <strong>{filteredEmails.length}</strong> triage logs
+                      </span>
+                      
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button 
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          className="btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '12px', opacity: currentPage === 1 ? 0.5 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                        >
+                          &larr; Prev
+                        </button>
+                        
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`btn-secondary ${currentPage === pageNum ? 'active' : ''}`}
+                            style={{ 
+                              padding: '6px 12px', 
+                              fontSize: '12px',
+                              background: currentPage === pageNum ? 'var(--btn-gradient)' : '',
+                              color: currentPage === pageNum ? '#ffffff' : '',
+                              borderColor: currentPage === pageNum ? 'transparent' : ''
+                            }}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                        
+                        <button 
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          className="btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '12px', opacity: currentPage === totalPages ? 0.5 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                        >
+                          Next &rarr;
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
