@@ -1986,7 +1986,6 @@ export default function App() {
                 </div>
                 <button
                   onClick={async () => {
-                    if (!confirm('Are you sure you want to clean up this newsletter? Sentry will instantly move it to Deleted Items in Outlook.')) return;
                     try {
                       const res = await fetch(`${API_BASE}/emails/${activeDetailEmail.id}/reroute`, {
                         method: 'PUT',
