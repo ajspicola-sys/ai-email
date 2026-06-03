@@ -140,9 +140,9 @@ function startEnterpriseInboxPoller() {
  * Checks an employee's mailbox, triages unread emails, and auto-moves them into folders.
  */
 async function processEmployeeInbox(employeeEmail, accessToken, activeRules) {
-  // Only look at unread emails received in the last 6 hours (to prevent back-processing thousands of old unread emails!)
-  const sixHoursAgo = new Date(Date.now() - 21600000).toISOString(); // 6 hours in ms
-  const filter = encodeURIComponent(`isRead eq false and receivedDateTime ge ${sixHoursAgo}`);
+  // Only look at unread emails received in the last 12 hours (to prevent back-processing thousands of old unread emails!)
+  const twelveHoursAgo = new Date(Date.now() - 43200000).toISOString(); // 12 hours in ms
+  const filter = encodeURIComponent(`isRead eq false and receivedDateTime ge ${twelveHoursAgo}`);
   
   // Limit to maximum 10 emails per 30-second poll cycle to prevent API throttling
   const url = `https://graph.microsoft.com/v1.0/users/${employeeEmail}/mailFolders/inbox/messages?$filter=${filter}&$top=10&$select=id,subject,bodyPreview,body,from,receivedDateTime`;
